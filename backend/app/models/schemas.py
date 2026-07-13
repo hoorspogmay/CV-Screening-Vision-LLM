@@ -1,0 +1,68 @@
+"""
+Pydantic models shared across the API — request/response shapes and the
+internal job/result data structures.
+"""
+from __future__ import annotations
+
+from datetime import datetime
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class Decision(str, Enum):
+    ACCEPT = "ACCEPT"
+    REJECT = "REJECT"
+
+
+class JobStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+
+
+class ResumeResult(BaseModel):
+    """The outcome of screening a single resume."""
+
+    file_id: str
+    file_name: str
+    candidate_name: str
+    decision: Decision
+    skills_summary: str
+    education_summary: str
+    experience_summary: str
+    reason: str
+    error: Optional[str] = None
+
+
+class JobProgress(BaseModel):
+    job_id: str
+    status: JobStatus
+    total: int
+    processed: int
+    accepted: int
+    rejected: int
+    failed: int
+
+
+class StartScreeningResponse(BaseModel):
+    job_id: str
+    total_files: int
+
+
+class WSEventType(str, Enum):
+    PROGRESS = "progress"
+    RESULT = "result"
+    ERROR = "error"
+    DONE = "done"
+
+
+class WSEvent(BaseModel):
+    """Envelope pushed to the frontend over the WebSocket connection."""
+
+    type: WSEventType
+    progress: Optional[JobProgress] = None
+    result: Optional[ResumeResult] = None
+    message: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)

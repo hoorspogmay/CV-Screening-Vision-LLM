@@ -1,0 +1,116 @@
+:root {
+  /* --- Palette --------------------------------------------------------- */
+  --color-bg: #f6f8fb;
+  --color-surface: #ffffff;
+  --color-surface-alt: #fafbfd;
+  --color-border: #e5e9f0;
+  --color-border-strong: #d7dce6;
+
+  --color-text-primary: #10182b;
+  --color-text-secondary: #5b6472;
+  --color-text-tertiary: #8a93a3;
+
+  --color-primary: #2e4bf2;
+  --color-primary-dark: #1f36c4;
+  --color-primary-tint: #eef1fe;
+
+  --color-accept: #1c9a5b;
+  --color-accept-tint: #eafbf3;
+  --color-accept-border: #bfe9d3;
+
+  --color-reject: #d8433a;
+  --color-reject-tint: #fdefee;
+  --color-reject-border: #f4c8c4;
+
+  --color-error: #d8433a;
+
+  /* --- Type -------------------------------------------------------------- */
+  --font-display: "Manrope", "Inter", sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* --- Shape / elevation -------------------------------------------------- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 43, 0.05);
+  --shadow-md: 0 4px 14px rgba(16, 24, 43, 0.06), 0 1px 3px rgba(16, 24, 43, 0.05);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 43, 0.10), 0 2px 6px rgba(16, 24, 43, 0.05);
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  margin: 0;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--color-primary-tint);
+  color: var(--color-primary-dark);
+}
+
+/* Focus visibility for keyboard users everywhere */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.container {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+@media (max-width: 720px) {
+  .container {
+    padding: 0 16px;
+  }
+}
