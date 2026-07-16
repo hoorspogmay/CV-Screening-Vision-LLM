@@ -1,87 +1,107 @@
-# Talent Screen — AI IT Resume Screening System
+# Talent Screen — AI Resume Screening System
 
-A minimal, focused application that accepts multiple IT resumes (PDF/DOCX),
-screens each one with an LLM against a built-in general-IT job profile, and
-sorts them into **Accepted** / **Rejected** in real time. Results can be
-exported to CSV.
+A lightweight full-stack application for screening multiple resumes (PDF/DOCX) against recruiter-defined job requirements. It evaluates each candidate with an LLM, applies deterministic hiring-policy rules, and presents results in real time with CSV export support.
+
+The system now supports generic job requirements rather than a fixed IT-only profile, including:
+
+- variable job role and education requirements
+- configurable minimum/maximum experience
+- required skill lists
+- overqualification handling
+- richer recruiter-style reasoning guidance
 
 ## Project structure
 
-```
+```text
 ats-screening/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                    # FastAPI app entrypoint
-│   │   ├── config.py                  # Settings (.env driven)
-│   │   ├── models/schemas.py          # Pydantic models
-│   │   ├── routes/screening.py        # /api/screening endpoints (upload, WS, export)
-│   │   ├── services/
-│   │   │   ├── ai_provider.py         # Provider factory / registry (the ONE switch point)
-│   │   │   ├── prompts.py             # Shared IT screening prompt
-│   │   │   ├── resume_service.py      # Job manager + concurrent processing
-│   │   │   └── providers/
-│   │   │       ├── base.py            # AIProvider abstract interface
-│   │   │       └── groq_provider.py   # Default provider (Groq)
-│   │   └── utils/
-│   │       ├── file_utils.py          # PDF / DOCX text extraction
-│   │       └── csv_export.py          # CSV generation
+│   │   ├── ai_provider.py            # provider factory and fallback logic
+│   │   ├── config.py                 # environment-driven settings
+│   │   ├── csv_export.py             # CSV generation for screening results
+│   │   ├── file_utils.py             # PDF / DOCX text extraction
+│   │   ├── google_provider.py        # Google/Gemini provider
+│   │   ├── groq_provider.py          # Groq provider
+│   │   ├── job_requirements.py       # job requirement schema
+│   │   ├── job_rules.py              # deterministic hiring-policy rules
+│   │   ├── main.py                   # FastAPI entrypoint
+│   │   ├── openrouter_provider.py    # OpenRouter provider
+│   │   ├── prompts.py                # generalized system prompt and user prompt builder
+│   │   ├── providers_base.py         # AI provider interface
+│   │   ├── resume_service.py         # job state, concurrency, result finalization
+│   │   ├── schemas.py                # Pydantic models
+│   │   └── screening.py              # upload, WebSocket, and export routes
 │   ├── requirements.txt
 │   └── .env.example
 └── frontend/
     ├── src/
     │   ├── App.jsx
-    │   ├── components/                # Navbar, UploadArea, ProgressPanel, ResultsPanel, CandidateCard, etc.
-    │   ├── hooks/                     # useScreeningJob (upload + WebSocket), useToasts
-    │   ├── utils/api.js                # fetch / WebSocket helpers
-    │   └── styles/                    # global.css (tokens) + app.css (components)
+    │   ├── components/               # UI panels, cards, navbar, upload area, toast container
+    │   ├── hooks/                    # screening job + toast hooks
+    │   ├── utils/api.js              # frontend API and WebSocket helpers
+    │   └── styles/                   # app.css + global.css
     ├── index.html
-    ├── vite.config.js
-    └── package.json
+    ├── package.json
+    └── vite.config.js
 ```
 
 ## How it works
 
-1. The recruiter drops in PDF/DOCX resumes (or a whole folder) and clicks **Start Screening**.
-2. The frontend uploads all files in one request to `POST /api/screening/start`, which returns a `job_id` and immediately kicks off background processing.
-3. The frontend opens a WebSocket to `/api/screening/ws/{job_id}`. Each resume is extracted and sent to the AI provider **concurrently** (bounded by `MAX_CONCURRENT_EVALUATIONS`); as soon as one finishes, it's broadcast over the socket and appears instantly in the Accepted or Rejected panel.
-4. A resume that fails to extract or evaluate is logged as an error and processing continues for the rest of the batch — one bad file never stops the job.
-5. Once every resume has been processed, **Export CSV** downloads `Candidate Name, File Name, Decision, Skills Summary, Education Summary, Experience Summary, Reason` for the batch.
+1. A recruiter uploads one or more PDF/DOCX resumes and optionally supplies a JSON payload of job requirements.
+2. The frontend sends the files to `POST /api/screening/start`, which creates a job and starts background screening.
+3. The backend extracts resume text, sends it to the selected AI provider, and applies deterministic hiring-policy rules.
+4. Results are streamed to the UI over WebSocket as each resume completes.
+5. The job can be exported as CSV through `GET /api/screening/export/{job_id}`.
 
-## Switching AI providers
+## AI providers
 
-The app defaults to **Groq**. To use a different provider, only two things change — no other file is touched:
+The app currently supports multiple providers through a simple factory pattern:
 
-1. Implement a new class in `backend/app/services/providers/<name>_provider.py` that satisfies the `AIProvider` interface (`evaluate_resume`).
-2. Register it in `backend/app/services/ai_provider.py`'s `PROVIDER_REGISTRY`, then set `AI_PROVIDER=<name>` in `.env`.
+- Groq
+- OpenRouter
+- Google/Gemini
 
-## Setup & installation
+The active provider is selected from the environment via `AI_PROVIDER` in the backend `.env` file.
 
-### Backend (Python 3.10+, FastAPI)
+## Setup and run
+
+### Backend (Python 3.10+)
 
 ```bash
 cd backend
 python -m venv .venv
-# Windows (Git Bash):
-source .venv/Scripts/activate
-# macOS/Linux:
+
+# Windows PowerShell
+.\.venv\Scripts\Activate.ps1
+
+# macOS / Linux
 source .venv/bin/activate
 
 pip install -r requirements.txt
-
 cp .env.example .env
-# then edit .env and set GROQ_API_KEY=your_real_key
 ```
 
-Run the API from the backend folder:
+Then edit `.env` and provide the key for your chosen provider, for example:
+
+```env
+AI_PROVIDER=groq
+GROQ_API_KEY=your_real_key
+```
+
+Run the API:
 
 ```bash
 cd backend
 uvicorn app.main:app --reload --port 8000
 ```
 
-The API is now live at `http://localhost:8000` (health check: `GET /api/health`).
+Health check:
 
-### Frontend (Node 18+, React + Vite)
+```bash
+curl http://localhost:8000/api/health
+```
+
+### Frontend (Node 18+)
 
 ```bash
 cd frontend
@@ -89,19 +109,27 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. The Vite dev server proxies `/api` requests (including the WebSocket) to `http://localhost:8000`, so both servers just need to be running side by side — no extra config.
+Open `http://localhost:5173`.
 
-### Production build
+## Example requirement payload
 
-```bash
-cd frontend
-npm run build       # outputs frontend/dist
+The backend accepts a JSON payload in the `requirements` form field for flexible screening. Example:
+
+```json
+{
+  "job_role": "Software Engineer",
+  "required_education": "Bachelor",
+  "min_experience": 3,
+  "max_experience": 8,
+  "required_skills": ["Python", "FastAPI", "PostgreSQL"],
+  "allow_overqualified": false,
+  "allow_internships": false
+}
 ```
-
-Serve `frontend/dist` with any static host, and point it at your deployed backend (update `vite.config.js` proxy target, or serve both behind the same reverse proxy).
 
 ## Notes
 
-- No login, dashboard, ranking, or analytics — by design, this app does exactly one thing.
-- Resumes are written to a temporary directory per job and are not persisted after processing.
-- If you rotate your Groq key, just update `GROQ_API_KEY` in `.env` and restart the backend.
+- Resumes are stored in a temporary directory per job and are not persisted after processing.
+- One failed resume does not stop the rest of the batch.
+- CSV export includes the original reasoning text in the `Reason` column when available.
+- The app is intentionally focused on one workflow: upload resumes, screen them, review results, and export them.
