@@ -1,7 +1,4 @@
-"""
-Pydantic models shared across the API — request/response shapes and the
-internal job/result data structures.
-"""
+"""Pydantic models shared across the API."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -23,8 +20,6 @@ class JobStatus(str, Enum):
 
 
 class ResumeResult(BaseModel):
-    """The outcome of screening a single resume."""
-
     file_id: str
     file_name: str
     candidate_name: str
@@ -34,6 +29,11 @@ class ResumeResult(BaseModel):
     experience_summary: str
     reason: str
     error: Optional[str] = None
+    education_level: Optional[str] = None
+    education_relevant: Optional[bool] = None
+    experience_years: Optional[int] = None
+    experience_relevant: Optional[bool] = None
+    skills_match: Optional[bool] = None
 
 
 class JobProgress(BaseModel):
@@ -59,8 +59,6 @@ class WSEventType(str, Enum):
 
 
 class WSEvent(BaseModel):
-    """Envelope pushed to the frontend over the WebSocket connection."""
-
     type: WSEventType
     progress: Optional[JobProgress] = None
     result: Optional[ResumeResult] = None

@@ -8,14 +8,20 @@ needs to know which provider is active.
 """
 from abc import ABC, abstractmethod
 
-from app.models.schemas import ResumeResult
+from app.schemas import ResumeResult
 
 
 class AIProvider(ABC):
     """Contract for a resume-screening AI backend."""
 
     @abstractmethod
-    async def evaluate_resume(self, resume_text: str, file_name: str, file_id: str) -> ResumeResult:
+    async def evaluate_resume(
+        self,
+        resume_text: str,
+        file_name: str,
+        file_id: str,
+        requirements: object | None = None,
+    ) -> ResumeResult:
         """
         Send resume text to the LLM and return a structured ResumeResult.
 

@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # Max resumes evaluated against the AI provider at the same time.
     max_concurrent_evaluations: int = 3
 
+    # --- Hiring policy defaults ----------------------------------------------
+    allow_overqualified: bool = False
+    allow_internships: bool = False
+
     # --- Uploads --------------------------------------------------------------
     max_upload_size_mb: int = 15
     allowed_extensions: tuple = (".pdf", ".docx")

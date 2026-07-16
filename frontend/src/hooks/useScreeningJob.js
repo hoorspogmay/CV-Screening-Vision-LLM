@@ -28,7 +28,7 @@ export function useScreeningJob(pushToast) {
   }, []);
 
   const beginScreening = useCallback(
-    async (rawFiles) => {
+    async (rawFiles, requirements) => {
       const files = rawFiles.filter(isAllowedFile);
       const skipped = rawFiles.length - files.length;
 
@@ -45,7 +45,7 @@ export function useScreeningJob(pushToast) {
       setProgress({ total: files.length, processed: 0, accepted: 0, rejected: 0, failed: 0 });
 
       try {
-        const { job_id, total_files } = await startScreening(files);
+        const { job_id, total_files } = await startScreening(files, requirements);
         setJobId(job_id);
         setProgress((prev) => ({ ...prev, total: total_files }));
         setStatus("processing");

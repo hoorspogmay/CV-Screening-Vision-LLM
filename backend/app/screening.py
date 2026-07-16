@@ -2,32 +2,43 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
-from fastapi import APIRouter, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
+from pathlib import Path
 
 from app.config import get_settings
-from app.models.schemas import StartScreeningResponse, WSEvent, WSEventType
-from app.services.resume_service import (
+from app.schemas import StartScreeningResponse, WSEvent, WSEventType
+from app.job_requirements import JobRequirements
+from app.resume_service import (
     job_manager,
     run_screening_job,
     save_uploads_to_temp,
 )
-from pathlib import Path
-
-from app.utils.csv_export import build_export_archive, results_to_csv
+from app.csv_export import results_to_csv
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/screening", tags=["screening"])
 
 
 @router.post("/start", response_model=StartScreeningResponse)
-async def start_screening(files: list[UploadFile]) -> StartScreeningResponse:
+async def start_screening(
+    files: list[UploadFile] = File(...),
+    requirements: str | None = Form(default=None),
+) -> StartScreeningResponse:
     settings = get_settings()
 
     if not files:
         raise HTTPException(status_code=400, detail="No files were uploaded.")
+
+    parsed_requirements: JobRequirements | None = None
+    if requirements:
+        try:
+            parsed_requirements = JobRequirements.model_validate_json(requirements)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"Invalid requirements payload: {exc}") from exc
 
     valid_files: list[tuple[str, bytes]] = []
     for upload in files:
@@ -45,7 +56,7 @@ async def start_screening(files: list[UploadFile]) -> StartScreeningResponse:
             detail="No valid PDF or DOCX resumes found in the upload.",
         )
 
-    job = job_manager.create_job(total_files=len(valid_files))
+    job = job_manager.create_job(total_files=len(valid_files), requirements=parsed_requirements)
     temp_dir, saved_paths = save_uploads_to_temp(valid_files)
     job.temp_dir = temp_dir
 
@@ -105,21 +116,3 @@ async def export_csv(job_id: str) -> StreamingResponse:
         headers={"Content-Disposition": f'attachment; filename="screening_results_{job_id[:8]}.csv"'},
     )
 
-
-@router.get("/export-folders/{job_id}")
-async def export_folders(job_id: str) -> StreamingResponse:
-    job = job_manager.get_job(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Job not found.")
-
-    file_map: dict[str, Path] = {}
-    if job.temp_dir:
-        for path in job.temp_dir.iterdir():
-            file_map[path.name] = path
-
-    archive_bytes = build_export_archive(job.results, file_map)
-    return StreamingResponse(
-        iter([archive_bytes]),
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="screening_results_{job_id[:8]}.zip"'},
-    )

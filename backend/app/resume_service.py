@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from app.config import get_settings
-from app.models.schemas import (
+from app.schemas import (
     Decision,
     JobProgress,
     JobStatus,
@@ -26,8 +26,10 @@ from app.models.schemas import (
     WSEvent,
     WSEventType,
 )
-from app.services.ai_provider import get_ai_provider, get_fallback_provider
-from app.utils.file_utils import extract_text
+from app.ai_provider import get_ai_provider, get_fallback_provider
+from app.job_requirements import JobRequirements
+from app.job_rules import apply_business_rules
+from app.file_utils import extract_text
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,7 @@ class JobState:
     results: list[ResumeResult] = field(default_factory=list)
     subscribers: list[asyncio.Queue] = field(default_factory=list)
     temp_dir: Path | None = None
+    requirements: JobRequirements | None = None
 
     @property
     def processed(self) -> int:
@@ -75,9 +78,9 @@ class JobManager:
     def __init__(self) -> None:
         self._jobs: dict[str, JobState] = {}
 
-    def create_job(self, total_files: int) -> JobState:
+    def create_job(self, total_files: int, requirements: JobRequirements | None = None) -> JobState:
         job_id = str(uuid.uuid4())
-        job = JobState(job_id=job_id, total=total_files)
+        job = JobState(job_id=job_id, total=total_files, requirements=requirements)
         self._jobs[job_id] = job
         return job
 
@@ -112,8 +115,8 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
     primary_provider = get_ai_provider()
     try:
         text = await asyncio.to_thread(extract_text, file_path)
-        result = await primary_provider.evaluate_resume(text, file_name, file_id)
-        return result
+        result = await primary_provider.evaluate_resume(text, file_name, file_id, requirements=job.requirements)
+        return _finalize_result(result, job.requirements)
     except Exception as exc:  # noqa: BLE001 - one bad resume must not stop the batch
         logger.warning("Primary provider failed for %s: %s", file_name, exc)
         fallback = get_fallback_provider(primary_provider)
@@ -132,7 +135,8 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
 
         try:
             text = await asyncio.to_thread(extract_text, file_path)
-            return await fallback.evaluate_resume(text, file_name, file_id)
+            result = await fallback.evaluate_resume(text, file_name, file_id, requirements=job.requirements)
+            return _finalize_result(result, job.requirements)
         except Exception as fallback_exc:  # noqa: BLE001
             logger.warning("Fallback provider also failed for %s: %s", file_name, fallback_exc)
             return ResumeResult(
@@ -146,6 +150,23 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
                 reason="Processing failed.",
                 error=str(fallback_exc),
             )
+
+
+def _finalize_result(result: ResumeResult, requirements: JobRequirements | None) -> ResumeResult:
+    if requirements is None:
+        return result
+
+    ai_payload = {
+        "education_level": str(result.education_level or "").strip().lower() or "none",
+        "education_relevant": bool(result.education_relevant if result.education_relevant is not None else True),
+        "experience_years": result.experience_years,
+        "experience_relevant": bool(result.experience_relevant if result.experience_relevant is not None else True),
+        "skills_match": bool(result.skills_match if result.skills_match is not None else True),
+        "reason": result.reason,
+        "skills_summary": result.skills_summary,
+    }
+    decision, _ = apply_business_rules(requirements, ai_payload)
+    return result.model_copy(update={"decision": decision, "reason": result.reason})
 
 
 async def run_screening_job(job: JobState, file_paths: list[tuple[Path, str]]) -> None:

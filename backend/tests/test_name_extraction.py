@@ -1,4 +1,4 @@
-from app.services.providers.groq_provider import GroqProvider
+from app.groq_provider import GroqProvider
 
 
 def test_extract_candidate_name_from_resume_text() -> None:

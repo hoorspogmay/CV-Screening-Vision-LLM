@@ -1,3 +1,4 @@
+import { useState } from "react";
 import "./styles/app.css";
 import Navbar from "./components/Navbar.jsx";
 import Footer from "./components/Footer.jsx";
@@ -6,12 +7,23 @@ import ProgressPanel from "./components/ProgressPanel.jsx";
 import ResultsPanel from "./components/ResultsPanel.jsx";
 import ExportBar from "./components/ExportBar.jsx";
 import ToastContainer from "./components/ToastContainer.jsx";
+import RequirementsPanel from "./components/RequirementsPanel.jsx";
 import { useScreeningJob } from "./hooks/useScreeningJob.js";
 import { useToasts } from "./hooks/useToasts.js";
+
+const emptyRequirements = {
+  job_role: "",
+  required_education: "",
+  min_experience: "",
+  max_experience: "",
+  required_skills: [],
+  allow_overqualified: false,
+};
 
 export default function App() {
   const { toasts, pushToast, dismissToast } = useToasts();
   const { status, jobId, progress, results, beginScreening, reset } = useScreeningJob(pushToast);
+  const [requirements, setRequirements] = useState(emptyRequirements);
 
   const accepted = results.filter((r) => r.decision === "ACCEPT" && !r.error);
   const rejected = results.filter((r) => r.decision !== "ACCEPT" || r.error);
@@ -26,7 +38,8 @@ export default function App() {
 
       <main className="main">
         <div className="container">
-          <UploadArea onStart={beginScreening} status={status} />
+          <RequirementsPanel requirements={requirements} setRequirements={setRequirements} status={status} />
+          <UploadArea onStart={beginScreening} status={status} requirements={requirements} />
 
           <ProgressPanel status={status} progress={progress} />
 

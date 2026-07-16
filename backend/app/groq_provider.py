@@ -12,9 +12,10 @@ import re
 import httpx
 
 from app.config import get_settings
-from app.models.schemas import Decision, ResumeResult
-from app.services.prompts import SYSTEM_PROMPT, build_user_prompt
-from app.services.providers.base import AIProvider
+from app.schemas import Decision, ResumeResult
+from app.job_requirements import JobRequirements
+from app.prompts import SYSTEM_PROMPT, build_user_prompt
+from app.providers_base import AIProvider
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,13 @@ class GroqProvider(AIProvider):
         self._max_retries = settings.ai_max_retries
         self._backoff = settings.ai_retry_backoff_seconds
 
-    async def evaluate_resume(self, resume_text: str, file_name: str, file_id: str) -> ResumeResult:
+    async def evaluate_resume(
+        self,
+        resume_text: str,
+        file_name: str,
+        file_id: str,
+        requirements: JobRequirements | None = None,
+    ) -> ResumeResult:
         if not self._api_key:
             raise RuntimeError("GROQ_API_KEY is not configured. Set it in your .env file.")
 
@@ -37,7 +44,7 @@ class GroqProvider(AIProvider):
             "model": self._model,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": build_user_prompt(resume_text)},
+                {"role": "user", "content": build_user_prompt(resume_text, requirements)},
             ],
             "temperature": 0.1,
             "response_format": {"type": "json_object"},
@@ -72,9 +79,6 @@ class GroqProvider(AIProvider):
         cleaned = content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         data = json.loads(cleaned)
 
-        decision_raw = str(data.get("decision", "")).strip().upper()
-        decision = Decision.ACCEPT if decision_raw == "ACCEPT" else Decision.REJECT
-
         candidate_name = str(data.get("candidate_name") or "").strip()
         if not candidate_name or candidate_name.lower() in {"unknown", "n/a", "null"}:
             candidate_name = GroqProvider._infer_candidate_name(resume_text)
@@ -83,11 +87,16 @@ class GroqProvider(AIProvider):
             file_id=file_id,
             file_name=file_name,
             candidate_name=candidate_name or "Unknown",
-            decision=decision,
-            skills_summary=data.get("skills", ""),
-            education_summary=data.get("education", ""),
-            experience_summary=data.get("experience", ""),
+            decision=Decision.REJECT,
+            skills_summary=data.get("skills_summary", data.get("skills", "")),
+            education_summary=data.get("education_summary", data.get("education", "")),
+            experience_summary=data.get("experience_summary", data.get("experience", "")),
             reason=data.get("reason", ""),
+            education_level=data.get("education_level"),
+            education_relevant=data.get("education_relevant"),
+            experience_years=data.get("experience_years"),
+            experience_relevant=data.get("experience_relevant"),
+            skills_match=data.get("skills_match"),
         )
 
     @staticmethod

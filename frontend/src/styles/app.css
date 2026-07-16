@@ -103,6 +103,108 @@
 }
 
 /* ==========================================================================
+   Requirements panel
+   ========================================================================== */
+.requirements-panel {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.requirements-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.requirements-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field__label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-secondary);
+}
+
+.field__input {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  background: var(--color-surface-alt);
+}
+
+.field__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(79, 111, 241, 0.14);
+}
+
+.skill-input-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.skill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.skill-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.skill-pill__remove {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 720px) {
+  .requirements-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
    Upload card / dropzone
    ========================================================================== */
 .upload-card {

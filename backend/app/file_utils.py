@@ -1,10 +1,4 @@
-"""
-Resume text extraction.
-
-Supports PDF (via PyMuPDF) and DOCX (via python-docx). Extraction failures
-raise ValueError with a human-readable message so the caller can surface a
-clean error for that single resume without stopping the batch.
-"""
+"""Resume text extraction utilities for PDF and DOCX files."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -29,7 +23,7 @@ def _extract_pdf_text(file_path: Path) -> str:
             for page in doc:
                 text_parts.append(page.get_text())
         text = "\n".join(text_parts).strip()
-    except Exception as exc:  # noqa: BLE001 - surface any PyMuPDF failure uniformly
+    except Exception as exc:  # noqa: BLE001
         raise ValueError(f"Could not read PDF: {exc}") from exc
 
     if not text:

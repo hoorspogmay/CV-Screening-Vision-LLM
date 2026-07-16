@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-export default function UploadArea({ onStart, status }) {
+export default function UploadArea({ onStart, status, requirements }) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const fileInputRef = useRef(null);
@@ -28,7 +28,7 @@ export default function UploadArea({ onStart, status }) {
 
   const handleStart = () => {
     if (selectedFiles.length === 0) return;
-    onStart(selectedFiles);
+    onStart(selectedFiles, requirements);
   };
 
   return (

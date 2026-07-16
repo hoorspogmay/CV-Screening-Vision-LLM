@@ -9,10 +9,10 @@ the AI_PROVIDER setting. To add a new provider:
 No other file in the app changes.
 """
 from app.config import get_settings
-from app.services.providers.base import AIProvider
-from app.services.providers.google_provider import GoogleProvider
-from app.services.providers.groq_provider import GroqProvider
-from app.services.providers.openrouter_provider import OpenRouterProvider
+from app.providers_base import AIProvider
+from app.google_provider import GoogleProvider
+from app.groq_provider import GroqProvider
+from app.openrouter_provider import OpenRouterProvider
 
 PROVIDER_REGISTRY: dict[str, type[AIProvider]] = {
     "groq": GroqProvider,

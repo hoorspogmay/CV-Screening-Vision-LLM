@@ -1,5 +1,5 @@
 import app.config as config
-from app.services.providers.openrouter_provider import OpenRouterProvider
+from app.openrouter_provider import OpenRouterProvider
 
 
 def test_openrouter_provider_splits_multiple_api_keys(monkeypatch) -> None:

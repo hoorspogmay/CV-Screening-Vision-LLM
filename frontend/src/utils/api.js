@@ -4,9 +4,12 @@ const API_BASE = "/api/screening";
  * Uploads all selected files and starts a screening job.
  * Returns { job_id, total_files }.
  */
-export async function startScreening(files) {
+export async function startScreening(files, requirements) {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file, file.webkitRelativePath || file.name));
+  if (requirements) {
+    formData.append("requirements", JSON.stringify(requirements));
+  }
 
   const response = await fetch(`${API_BASE}/start`, {
     method: "POST",
@@ -33,6 +36,3 @@ export function exportCsvUrl(jobId) {
   return `${API_BASE}/export/${jobId}`;
 }
 
-export function exportFoldersUrl(jobId) {
-  return `${API_BASE}/export-folders/${jobId}`;
-}
