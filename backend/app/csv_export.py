@@ -12,6 +12,7 @@ CSV_COLUMNS = [
     "Education Summary",
     "Experience Summary",
     "Reason",
+    "Match Score",
 ]
 
 
@@ -31,6 +32,7 @@ def results_to_csv(results: list[ResumeResult]) -> str:
             result.education_summary,
             result.experience_summary,
             result.reason,
+            result.match_score,
         ])
 
     return buffer.getvalue()

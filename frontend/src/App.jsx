@@ -16,6 +16,8 @@ const emptyRequirements = {
   required_education: "",
   min_experience: "",
   max_experience: "",
+  accept_threshold: 80,
+  doubtful_threshold: 50,
   required_skills: [],
   allow_overqualified: false,
 };
@@ -26,7 +28,9 @@ export default function App() {
   const [requirements, setRequirements] = useState(emptyRequirements);
 
   const accepted = results.filter((r) => r.decision === "ACCEPT" && !r.error);
-  const rejected = results.filter((r) => r.decision !== "ACCEPT" || r.error);
+  const doubtful = results.filter((r) => r.decision === "DOUBTFUL" && !r.error);
+  const rejected = results.filter((r) => r.decision === "REJECT" || r.error);
+  const failed = results.filter((r) => r.error);
 
   const remaining = Math.max(progress.total - progress.processed, 0);
   const isActive = status === "processing" || status === "uploading";
@@ -50,6 +54,13 @@ export default function App() {
               title="Accepted Candidates"
               variant="accept"
               results={accepted}
+              pendingCount={skeletonsPerPanel}
+              status={status}
+            />
+            <ResultsPanel
+              title="Doubtful Candidates"
+              variant="doubtful"
+              results={doubtful}
               pendingCount={skeletonsPerPanel}
               status={status}
             />

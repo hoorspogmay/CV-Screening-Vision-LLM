@@ -15,7 +15,7 @@ function isAllowedFile(file) {
 export function useScreeningJob(pushToast) {
   const [status, setStatus] = useState("idle"); // idle | uploading | processing | completed
   const [jobId, setJobId] = useState(null);
-  const [progress, setProgress] = useState({ total: 0, processed: 0, accepted: 0, rejected: 0, failed: 0 });
+  const [progress, setProgress] = useState({ total: 0, processed: 0, accepted: 0, doubtful: 0, rejected: 0, failed: 0 });
   const [results, setResults] = useState([]);
   const socketRef = useRef(null);
 
@@ -23,7 +23,7 @@ export function useScreeningJob(pushToast) {
     socketRef.current?.close();
     setStatus("idle");
     setJobId(null);
-    setProgress({ total: 0, processed: 0, accepted: 0, rejected: 0, failed: 0 });
+    setProgress({ total: 0, processed: 0, accepted: 0, doubtful: 0, rejected: 0, failed: 0 });
     setResults([]);
   }, []);
 
@@ -42,7 +42,7 @@ export function useScreeningJob(pushToast) {
 
       setResults([]);
       setStatus("uploading");
-      setProgress({ total: files.length, processed: 0, accepted: 0, rejected: 0, failed: 0 });
+      setProgress({ total: files.length, processed: 0, accepted: 0, doubtful: 0, rejected: 0, failed: 0 });
 
       try {
         const { job_id, total_files } = await startScreening(files, requirements);

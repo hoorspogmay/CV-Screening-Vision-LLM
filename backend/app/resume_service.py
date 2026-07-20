@@ -53,6 +53,10 @@ class JobState:
         return sum(1 for r in self.results if r.decision == Decision.ACCEPT and not r.error)
 
     @property
+    def doubtful(self) -> int:
+        return sum(1 for r in self.results if r.decision == Decision.DOUBTFUL and not r.error)
+
+    @property
     def rejected(self) -> int:
         return sum(1 for r in self.results if r.decision == Decision.REJECT and not r.error)
 
@@ -67,6 +71,7 @@ class JobState:
             total=self.total,
             processed=self.processed,
             accepted=self.accepted,
+            doubtful=self.doubtful,
             rejected=self.rejected,
             failed=self.failed,
         )
@@ -166,7 +171,24 @@ def _finalize_result(result: ResumeResult, requirements: JobRequirements | None)
         "skills_summary": result.skills_summary,
     }
     decision, _ = apply_business_rules(requirements, ai_payload)
-    return result.model_copy(update={"decision": decision, "reason": result.reason})
+    final_decision = _classify_by_match_score(result.match_score, decision)
+    return result.model_copy(update={"decision": final_decision, "reason": result.reason})
+
+
+def _classify_by_match_score(match_score: float | None, fallback_decision: Decision) -> Decision:
+    if match_score is None:
+        return fallback_decision
+
+    try:
+        score = float(match_score)
+    except (TypeError, ValueError):
+        return fallback_decision
+
+    if score >= 80:
+        return Decision.ACCEPT
+    if score >= 50:
+        return Decision.DOUBTFUL
+    return Decision.REJECT
 
 
 async def run_screening_job(job: JobState, file_paths: list[tuple[Path, str]]) -> None:

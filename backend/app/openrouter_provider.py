@@ -94,15 +94,24 @@ class OpenRouterProvider(AIProvider):
         candidate_name = str(data.get("candidate_name") or "").strip()
         if not candidate_name or candidate_name.lower() in {"unknown", "n/a", "null"}:
             candidate_name = "Unknown"
+        decision_value = str(data.get("decision") or "").strip().upper()
+        if decision_value not in {Decision.ACCEPT.value, Decision.REJECT.value}:
+            decision_value = Decision.REJECT.value
+        try:
+            match_score = float(data.get("match_score", 0))
+        except (TypeError, ValueError):
+            match_score = 0.0
+
         return ResumeResult(
             file_id=file_id,
             file_name=file_name,
             candidate_name=candidate_name,
-            decision=Decision.REJECT,
+            decision=Decision(decision_value),
             skills_summary=data.get("skills_summary", data.get("skills", "")),
             education_summary=data.get("education_summary", data.get("education", "")),
             experience_summary=data.get("experience_summary", data.get("experience", "")),
             reason=data.get("reason", ""),
+            match_score=match_score,
             education_level=data.get("education_level"),
             education_relevant=data.get("education_relevant"),
             experience_years=data.get("experience_years"),

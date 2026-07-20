@@ -13,13 +13,15 @@ class JobRequirements(BaseModel):
     required_education: str = ""
     min_experience: Optional[int] = None
     max_experience: Optional[int] = None
+    accept_threshold: int = 80
+    doubtful_threshold: int = 50
     required_skills: list[str] = Field(default_factory=list)
     allow_overqualified: bool = False
     allow_internships: bool = False
 
-    @field_validator("min_experience", "max_experience", mode="before")
+    @field_validator("min_experience", "max_experience", "accept_threshold", "doubtful_threshold", mode="before")
     @classmethod
-    def normalize_experience(cls, value: object) -> Optional[int]:
+    def normalize_int(cls, value: object) -> Optional[int]:
         if value in (None, "", "None", "null"):
             return None
         if isinstance(value, str):

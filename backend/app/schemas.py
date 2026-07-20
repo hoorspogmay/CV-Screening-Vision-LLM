@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 class Decision(str, Enum):
     ACCEPT = "ACCEPT"
+    DOUBTFUL = "DOUBTFUL"
     REJECT = "REJECT"
 
 
@@ -29,6 +30,7 @@ class ResumeResult(BaseModel):
     experience_summary: str
     reason: str
     error: Optional[str] = None
+    match_score: Optional[float] = Field(default=None, ge=0, le=100)
     education_level: Optional[str] = None
     education_relevant: Optional[bool] = None
     experience_years: Optional[int] = None
@@ -42,6 +44,7 @@ class JobProgress(BaseModel):
     total: int
     processed: int
     accepted: int
+    doubtful: int
     rejected: int
     failed: int
 

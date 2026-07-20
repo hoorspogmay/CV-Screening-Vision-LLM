@@ -22,7 +22,7 @@ backend/.mypy_cache/
 # Node / frontend
 frontend/node_modules/
 frontend/dist/
-frontend/.vite/
+frotend/.vite/
 frontend/.parcel-cache/
 frontend/npm-debug.log*
 frontend/yarn-debug.log*
@@ -38,3 +38,5 @@ Thumbs.db
 coverage/
 htmlcov/
 .pytest_cache/
+
+node_modules/

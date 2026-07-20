@@ -1,18 +1,45 @@
 export default function CandidateCard({ result }) {
-  const isAccepted = result.decision === "ACCEPT";
   const hasError = Boolean(result.error);
+  const decision = hasError ? "ERROR" : result.decision;
+  const score = typeof result.match_score === "number" ? result.match_score : null;
+
+  const cardClass = decision === "ACCEPT"
+    ? "candidate-card--accept"
+    : decision === "DOUBTFUL"
+      ? "candidate-card--doubtful"
+      : decision === "REJECT"
+        ? "candidate-card--reject"
+        : "candidate-card--error";
+
+  const badgeClass = decision === "ACCEPT"
+    ? "badge--accept"
+    : decision === "DOUBTFUL"
+      ? "badge--doubtful"
+      : decision === "REJECT"
+        ? "badge--reject"
+        : "badge--error";
+
+  const badgeLabel = decision === "ACCEPT"
+    ? "Accepted"
+    : decision === "DOUBTFUL"
+      ? "Doubtful"
+      : decision === "REJECT"
+        ? "Rejected"
+        : "Error";
 
   return (
-    <article className={`candidate-card ${isAccepted ? "candidate-card--accept" : "candidate-card--reject"}`}>
+    <article className={`candidate-card ${cardClass}`}>
       <div className="candidate-card__header">
         <div>
           <h4 className="candidate-card__name">{result.candidate_name || "Unknown Candidate"}</h4>
           <p className="candidate-card__file">{result.file_name}</p>
         </div>
-        <span className={`badge ${isAccepted ? "badge--accept" : "badge--reject"}`}>
-          {isAccepted ? "Accepted" : "Rejected"}
-        </span>
+        <span className={`badge ${badgeClass}`}>{badgeLabel}</span>
       </div>
+
+      {!hasError && score !== null ? (
+        <p className="candidate-card__score">Match Score: {Math.round(score)}/100</p>
+      ) : null}
 
       {hasError ? (
         <p className="candidate-card__error">Could not process this resume: {result.error}</p>

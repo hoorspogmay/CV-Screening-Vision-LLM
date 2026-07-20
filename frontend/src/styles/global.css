@@ -18,11 +18,17 @@
   --color-accept-tint: #eafbf3;
   --color-accept-border: #bfe9d3;
 
+  --color-doubtful: #b7791f;
+  --color-doubtful-tint: #fff7e8;
+  --color-doubtful-border: #f2d8a7;
+
   --color-reject: #d8433a;
   --color-reject-tint: #fdefee;
   --color-reject-border: #f4c8c4;
 
   --color-error: #d8433a;
+  --color-error-tint: #fef2f2;
+  --color-error-border: #f7c3c3;
 
   /* --- Type -------------------------------------------------------------- */
   --font-display: "Manrope", "Inter", sans-serif;

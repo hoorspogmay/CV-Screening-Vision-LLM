@@ -74,6 +74,34 @@ export default function RequirementsPanel({ requirements, setRequirements, statu
               disabled={isBusy}
             />
           </label>
+
+          <label className="field">
+            <span className="field__label">Accept Threshold</span>
+            <input
+              className="field__input"
+              type="number"
+              min="0"
+              max="100"
+              value={requirements.accept_threshold}
+              onChange={(event) => setRequirements((prev) => ({ ...prev, accept_threshold: event.target.value }))}
+              placeholder="80"
+              disabled={isBusy}
+            />
+          </label>
+
+          <label className="field">
+            <span className="field__label">Doubtful Threshold</span>
+            <input
+              className="field__input"
+              type="number"
+              min="0"
+              max="100"
+              value={requirements.doubtful_threshold}
+              onChange={(event) => setRequirements((prev) => ({ ...prev, doubtful_threshold: event.target.value }))}
+              placeholder="50"
+              disabled={isBusy}
+            />
+          </label>
         </div>
 
         <div className="field">
