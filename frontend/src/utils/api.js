@@ -4,11 +4,11 @@ const API_BASE = "/api/screening";
  * Uploads all selected files and starts a screening job.
  * Returns { job_id, total_files }.
  */
-export async function startScreening(files, requirements) {
+export async function startScreening(files, jobSpecFile) {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file, file.webkitRelativePath || file.name));
-  if (requirements) {
-    formData.append("requirements", JSON.stringify(requirements));
+  if (jobSpecFile) {
+    formData.append("job_spec", jobSpecFile, jobSpecFile.name);
   }
 
   const response = await fetch(`${API_BASE}/start`, {

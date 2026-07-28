@@ -28,10 +28,14 @@ export function useScreeningJob(pushToast) {
   }, []);
 
   const beginScreening = useCallback(
-    async (rawFiles, requirements) => {
+    async (rawFiles, jobSpecFile) => {
       const files = rawFiles.filter(isAllowedFile);
       const skipped = rawFiles.length - files.length;
 
+      if (!jobSpecFile) {
+        pushToast("Please upload a Microsoft Word job specification document first.", "error");
+        return;
+      }
       if (files.length === 0) {
         pushToast("No PDF or DOCX resumes found in your selection.", "error");
         return;
@@ -45,7 +49,7 @@ export function useScreeningJob(pushToast) {
       setProgress({ total: files.length, processed: 0, accepted: 0, doubtful: 0, rejected: 0, failed: 0 });
 
       try {
-        const { job_id, total_files } = await startScreening(files, requirements);
+        const { job_id, total_files } = await startScreening(files, jobSpecFile);
         setJobId(job_id);
         setProgress((prev) => ({ ...prev, total: total_files }));
         setStatus("processing");

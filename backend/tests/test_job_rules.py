@@ -1,5 +1,5 @@
 from app.schemas import Decision, ResumeResult
-from app.job_requirements import JobRequirements
+from app.job_requirements import JobRequirements, build_job_requirements_from_text
 from app.job_rules import apply_business_rules
 from app.resume_service import _finalize_result
 
@@ -86,3 +86,21 @@ def test_final_classification_uses_score_bucket_for_doubtful() -> None:
     finalized = _finalize_result(result, requirements)
 
     assert finalized.decision == Decision.DOUBTFUL
+
+
+def test_build_job_requirements_from_text_extracts_role_and_skills() -> None:
+    spec_text = """
+    Job Role: Data Analyst
+    Required Education: Bachelor's
+    Minimum Experience: 2 years
+    Maximum Experience: 5 years
+    Required Skills: Python, SQL, Excel
+    """
+
+    requirements = build_job_requirements_from_text(spec_text)
+
+    assert requirements.job_role == "Data Analyst"
+    assert requirements.required_education == "Bachelor's"
+    assert requirements.min_experience == 2
+    assert requirements.max_experience == 5
+    assert requirements.required_skills == ["Python", "SQL", "Excel"]

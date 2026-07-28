@@ -4,14 +4,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import tempfile
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from pathlib import Path
 
 from app.config import get_settings
 from app.schemas import StartScreeningResponse, WSEvent, WSEventType
-from app.job_requirements import JobRequirements
+from app.job_requirements import JobRequirements, build_job_requirements_from_text
+from app.file_utils import extract_text
 from app.resume_service import (
     job_manager,
     run_screening_job,
@@ -26,7 +28,7 @@ router = APIRouter(prefix="/api/screening", tags=["screening"])
 @router.post("/start", response_model=StartScreeningResponse)
 async def start_screening(
     files: list[UploadFile] = File(...),
-    requirements: str | None = Form(default=None),
+    job_spec: UploadFile | None = File(default=None),
 ) -> StartScreeningResponse:
     settings = get_settings()
 
@@ -34,11 +36,25 @@ async def start_screening(
         raise HTTPException(status_code=400, detail="No files were uploaded.")
 
     parsed_requirements: JobRequirements | None = None
-    if requirements:
+    if job_spec is not None:
+        filename = job_spec.filename or ""
+        if not filename.lower().endswith(".docx"):
+            raise HTTPException(status_code=400, detail="Job specification must be a .docx Word file.")
+
+        spec_bytes = await job_spec.read()
+        if len(spec_bytes) > settings.max_upload_size_mb * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Job specification file exceeds the upload size limit.")
+
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as handle:
+            handle.write(spec_bytes)
+            temp_spec_path = Path(handle.name)
+
         try:
-            parsed_requirements = JobRequirements.model_validate_json(requirements)
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=400, detail=f"Invalid requirements payload: {exc}") from exc
+            spec_text = extract_text(temp_spec_path)
+        finally:
+            temp_spec_path.unlink(missing_ok=True)
+
+        parsed_requirements = build_job_requirements_from_text(spec_text)
 
     valid_files: list[tuple[str, bytes]] = []
     for upload in files:

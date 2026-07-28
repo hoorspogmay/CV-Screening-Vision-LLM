@@ -11,21 +11,10 @@ import RequirementsPanel from "./components/RequirementsPanel.jsx";
 import { useScreeningJob } from "./hooks/useScreeningJob.js";
 import { useToasts } from "./hooks/useToasts.js";
 
-const emptyRequirements = {
-  job_role: "",
-  required_education: "",
-  min_experience: "",
-  max_experience: "",
-  accept_threshold: 80,
-  doubtful_threshold: 50,
-  required_skills: [],
-  allow_overqualified: false,
-};
-
 export default function App() {
   const { toasts, pushToast, dismissToast } = useToasts();
   const { status, jobId, progress, results, beginScreening, reset } = useScreeningJob(pushToast);
-  const [requirements, setRequirements] = useState(emptyRequirements);
+  const [jobSpecFile, setJobSpecFile] = useState(null);
 
   const accepted = results.filter((r) => r.decision === "ACCEPT" && !r.error);
   const doubtful = results.filter((r) => r.decision === "DOUBTFUL" && !r.error);
@@ -42,8 +31,8 @@ export default function App() {
 
       <main className="main">
         <div className="container">
-          <RequirementsPanel requirements={requirements} setRequirements={setRequirements} status={status} />
-          <UploadArea onStart={beginScreening} status={status} requirements={requirements} />
+          <RequirementsPanel jobSpecFile={jobSpecFile} setJobSpecFile={setJobSpecFile} status={status} />
+          <UploadArea onStart={beginScreening} status={status} jobSpecFile={jobSpecFile} setJobSpecFile={setJobSpecFile} />
 
           <ProgressPanel status={status} progress={progress} />
 

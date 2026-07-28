@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-export default function UploadArea({ onStart, status, requirements }) {
+export default function UploadArea({ onStart, status, jobSpecFile, setJobSpecFile }) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const fileInputRef = useRef(null);
@@ -28,7 +28,11 @@ export default function UploadArea({ onStart, status, requirements }) {
 
   const handleStart = () => {
     if (selectedFiles.length === 0) return;
-    onStart(selectedFiles, requirements);
+    if (!jobSpecFile) {
+      window.alert("Please upload a Microsoft Word job specification document first.");
+      return;
+    }
+    onStart(selectedFiles, jobSpecFile);
   };
 
   return (
@@ -57,7 +61,7 @@ export default function UploadArea({ onStart, status, requirements }) {
         </div>
 
         <h3 className="dropzone__title">Drag and drop resumes here</h3>
-        <p className="dropzone__subtitle">PDF and DOCX files, or an entire folder of resumes</p>
+        <p className="dropzone__subtitle">Upload one .docx job specification file and one or more PDF/DOCX resumes.</p>
 
         <div className="dropzone__actions">
           <button
@@ -101,6 +105,7 @@ export default function UploadArea({ onStart, status, requirements }) {
         <div className="selection-bar">
           <span className="selection-bar__count">
             {selectedFiles.length} resume{selectedFiles.length > 1 ? "s" : ""} selected
+            {jobSpecFile ? ` • ${jobSpecFile.name}` : ""}
           </span>
           <div className="selection-bar__actions">
             <button type="button" className="btn btn--ghost" disabled={isBusy} onClick={clearSelection}>
