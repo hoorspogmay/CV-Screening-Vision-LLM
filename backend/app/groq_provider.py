@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 
 import httpx
 
@@ -16,8 +17,10 @@ from app.schemas import Decision, ResumeResult
 from app.job_requirements import JobRequirements
 from app.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.providers_base import AIProvider
+from app.token_logger import GroqProviderAdapter, TokenUsageLogger, safe_record_usage
 
 logger = logging.getLogger(__name__)
+token_logger = TokenUsageLogger()
 
 
 class GroqProvider(AIProvider):
@@ -37,16 +40,31 @@ class GroqProvider(AIProvider):
         file_id: str,
         requirements: JobRequirements | None = None,
     ) -> ResumeResult:
+        start_time = time.time()  # must use time.time() — perf_counter() breaks token_logger duration calc
+        prompt_text = build_user_prompt(resume_text, requirements)
+
         if not self._api_key:
+            logger.error("Groq API key is not configured. Set GROQ_API_KEY in your .env file.")
+            safe_record_usage(
+                token_logger,
+                resume_filename=file_name,
+                provider_adapter=GroqProviderAdapter(api_key_identifier="Groq"),
+                response=None,
+                prompt_text=prompt_text,
+                processing_started_at=start_time,
+                api_key_identifier="Groq",
+                model_name=self._model,
+            )
             raise RuntimeError("GROQ_API_KEY is not configured. Set it in your .env file.")
 
         payload = {
             "model": self._model,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": build_user_prompt(resume_text, requirements)},
+                {"role": "user", "content": prompt_text},
             ],
             "temperature": 0.1,
+            "max_tokens": 300,
             "response_format": {"type": "json_object"},
         }
         headers = {
@@ -58,10 +76,28 @@ class GroqProvider(AIProvider):
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             for attempt in range(1, self._max_retries + 1):
                 try:
+                    logger.info(
+                        "Groq API call starting | file=%s | model=%s | attempt=%d/%d",
+                        file_name, self._model, attempt, self._max_retries,
+                    )
                     response = await client.post(self._url, headers=headers, json=payload)
                     response.raise_for_status()
                     body = response.json()
                     content = body["choices"][0]["message"]["content"]
+                    logger.info(
+                        "Groq API call succeeded | file=%s | attempt=%d/%d",
+                        file_name, attempt, self._max_retries,
+                    )
+                    safe_record_usage(
+                        token_logger,
+                        resume_filename=file_name,
+                        provider_adapter=GroqProviderAdapter(api_key_identifier="Groq"),
+                        response=body,
+                        prompt_text=prompt_text,
+                        processing_started_at=start_time,
+                        api_key_identifier="Groq",
+                        model_name=self._model,
+                    )
                     return self._parse_response(content, file_name, file_id, resume_text)
                 except (httpx.HTTPError, KeyError, json.JSONDecodeError) as exc:
                     last_error = exc
@@ -72,6 +108,20 @@ class GroqProvider(AIProvider):
                     if attempt < self._max_retries:
                         await asyncio.sleep(self._backoff * attempt)
 
+        logger.error(
+            "Groq evaluation failed for %s after %d attempts. Last error: %s",
+            file_name, self._max_retries, last_error,
+        )
+        safe_record_usage(
+            token_logger,
+            resume_filename=file_name,
+            provider_adapter=GroqProviderAdapter(api_key_identifier="Groq"),
+            response=None,
+            prompt_text=prompt_text,
+            processing_started_at=start_time,
+            api_key_identifier="Groq",
+            model_name=self._model,
+        )
         raise RuntimeError(f"Groq evaluation failed after {self._max_retries} attempts: {last_error}")
 
     @staticmethod
@@ -86,26 +136,27 @@ class GroqProvider(AIProvider):
         decision_value = str(data.get("decision") or "").strip().upper()
         if decision_value not in {Decision.ACCEPT.value, Decision.REJECT.value}:
             decision_value = Decision.REJECT.value
+
         try:
             match_score = float(data.get("match_score", 0))
         except (TypeError, ValueError):
             match_score = 0.0
+
+        try:
+            experience_years = int(data.get("experience_years") or 0)
+        except (TypeError, ValueError):
+            experience_years = 0
 
         return ResumeResult(
             file_id=file_id,
             file_name=file_name,
             candidate_name=candidate_name or "Unknown",
             decision=Decision(decision_value),
-            skills_summary=data.get("skills_summary", data.get("skills", "")),
-            education_summary=data.get("education_summary", data.get("education", "")),
-            experience_summary=data.get("experience_summary", data.get("experience", "")),
-            reason=data.get("reason", ""),
+            summary=data.get("summary", ""),
             match_score=match_score,
-            education_level=data.get("education_level"),
-            education_relevant=data.get("education_relevant"),
-            experience_years=data.get("experience_years"),
-            experience_relevant=data.get("experience_relevant"),
-            skills_match=data.get("skills_match"),
+            education_level=str(data.get("education_level") or "None").strip(),
+            experience_years=experience_years,
+            skills_match=bool(data.get("skills_match", True)),
         )
 
     @staticmethod
@@ -114,48 +165,26 @@ class GroqProvider(AIProvider):
             return "Unknown"
 
         role_keywords = (
-            "software engineer",
-            "developer",
-            "architect",
-            "manager",
-            "coordinator",
-            "analyst",
-            "administrator",
-            "support",
-            "specialist",
-            "consultant",
-            "engineer",
-            "director",
-            "lead",
-            "senior",
-            "junior",
-            "intern",
-            "team",
-            "it",
+            "software engineer", "developer", "architect", "manager",
+            "coordinator", "analyst", "administrator", "support",
+            "specialist", "consultant", "engineer", "director",
+            "lead", "senior", "junior", "intern", "team", "it",
         )
 
         for raw_line in resume_text.splitlines():
             line = re.sub(r"\s+", " ", raw_line).strip()
             if not line:
                 continue
-
             line = line.replace("\u00a0", " ").strip()
             if not line:
                 continue
-
             lowered = line.lower()
             if lowered.startswith(("email", "phone", "address", "linkedin", "github", "portfolio", "website")):
                 continue
             if lowered in {
-                "summary",
-                "skills",
-                "education",
-                "experience",
-                "professional summary",
-                "objective",
-                "profile",
-                "work experience",
-                "contact",
+                "summary", "skills", "education", "experience",
+                "professional summary", "objective", "profile",
+                "work experience", "contact",
             }:
                 continue
             if line.startswith(("•", "-", "*", "●")):
@@ -178,7 +207,10 @@ class GroqProvider(AIProvider):
                 words = candidate.split()
                 if len(words) < 2:
                     continue
-                if any(word.lower() in {"the", "and", "for", "resume", "skills", "experience", "education", "summary", "here", "details", "personal", "no"} for word in words):
+                if any(word.lower() in {
+                    "the", "and", "for", "resume", "skills", "experience",
+                    "education", "summary", "here", "details", "personal", "no",
+                } for word in words):
                     continue
                 if any(char.isdigit() for char in candidate):
                     continue

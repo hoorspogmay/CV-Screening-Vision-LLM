@@ -114,6 +114,18 @@ class JobManager:
 job_manager = JobManager()
 
 
+def _error_result(file_id: str, file_name: str, error: str) -> ResumeResult:
+    """Construct a failed ResumeResult using the current schema."""
+    return ResumeResult(
+        file_id=file_id,
+        file_name=file_name,
+        candidate_name="Unknown",
+        decision=Decision.REJECT,
+        summary="Processing failed.",
+        error=error,
+    )
+
+
 async def process_single_resume(job: JobState, file_path: Path, file_name: str) -> ResumeResult:
     """Extract text, evaluate with the AI provider, and return a result (never raises)."""
     file_id = str(uuid.uuid4())
@@ -122,21 +134,11 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
         text = await asyncio.to_thread(extract_text, file_path)
         result = await primary_provider.evaluate_resume(text, file_name, file_id, requirements=job.requirements)
         return _finalize_result(result, job.requirements)
-    except Exception as exc:  # noqa: BLE001 - one bad resume must not stop the batch
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Primary provider failed for %s: %s", file_name, exc)
         fallback = get_fallback_provider(primary_provider)
         if fallback is primary_provider:
-            return ResumeResult(
-                file_id=file_id,
-                file_name=file_name,
-                candidate_name="Unknown",
-                decision=Decision.REJECT,
-                skills_summary="",
-                education_summary="",
-                experience_summary="",
-                reason="Processing failed.",
-                error=str(exc),
-            )
+            return _error_result(file_id, file_name, str(exc))
 
         try:
             text = await asyncio.to_thread(extract_text, file_path)
@@ -144,35 +146,39 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
             return _finalize_result(result, job.requirements)
         except Exception as fallback_exc:  # noqa: BLE001
             logger.warning("Fallback provider also failed for %s: %s", file_name, fallback_exc)
-            return ResumeResult(
-                file_id=file_id,
-                file_name=file_name,
-                candidate_name="Unknown",
-                decision=Decision.REJECT,
-                skills_summary="",
-                education_summary="",
-                experience_summary="",
-                reason="Processing failed.",
-                error=str(fallback_exc),
-            )
+            return _error_result(file_id, file_name, str(fallback_exc))
 
 
 def _finalize_result(result: ResumeResult, requirements: JobRequirements | None) -> ResumeResult:
-    if requirements is None:
-        return result
+    """Classify the result.
 
-    ai_payload = {
-        "education_level": str(result.education_level or "").strip().lower() or "none",
-        "education_relevant": bool(result.education_relevant if result.education_relevant is not None else True),
-        "experience_years": result.experience_years,
-        "experience_relevant": bool(result.experience_relevant if result.experience_relevant is not None else True),
-        "skills_match": bool(result.skills_match if result.skills_match is not None else True),
-        "reason": result.reason,
-        "skills_summary": result.skills_summary,
-    }
-    decision, _ = apply_business_rules(requirements, ai_payload)
-    final_decision = _classify_by_match_score(result.match_score, decision)
-    return result.model_copy(update={"decision": final_decision, "reason": result.reason})
+    Priority order:
+    1. If business rules say hard REJECT (policy violation), always reject.
+    2. Otherwise, classify by match_score: >=80 ACCEPT, >=50 DOUBTFUL, <50 REJECT.
+    """
+    # Step 1 — check for a hard policy REJECT from business rules
+    if requirements is not None:
+        ai_payload = {
+            "education_level": str(result.education_level or "none").strip().lower(),
+            "education_relevant": True,
+            "experience_years": result.experience_years,
+            "experience_relevant": True,
+            "skills_match": bool(result.skills_match if result.skills_match is not None else True),
+            "reason": result.summary,
+            "skills_summary": result.summary,
+        }
+        rules_decision, _ = apply_business_rules(requirements, ai_payload)
+        if rules_decision == Decision.REJECT:
+            # Hard policy gate — candidate violates a recruiter-defined constraint
+            if result.decision != Decision.REJECT:
+                return result.model_copy(update={"decision": Decision.REJECT})
+            return result
+
+    # Step 2 — score drives the final decision
+    final_decision = _classify_by_match_score(result.match_score, result.decision)
+    if final_decision == result.decision:
+        return result
+    return result.model_copy(update={"decision": final_decision})
 
 
 def _classify_by_match_score(match_score: float | None, fallback_decision: Decision) -> Decision:

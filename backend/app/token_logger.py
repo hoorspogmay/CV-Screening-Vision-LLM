@@ -98,7 +98,7 @@ class TokenUsageLogger:
             processing_time_seconds=processing_time_seconds,
         )
 
-        self._write_console_log(record)
+        self._write_log(record)
         self.csv_logger.append(record.to_dict())
         return record
 
@@ -121,15 +121,28 @@ class TokenUsageLogger:
             return self._to_int(usage.get("completionTokenCount"))
         return None
 
-    def _extract_total_tokens(self, usage: Optional[Mapping[str, Any]], prompt_tokens: Optional[int], completion_tokens: Optional[int]) -> Optional[int]:
+    def _extract_total_tokens(
+        self,
+        usage: Optional[Mapping[str, Any]],
+        prompt_tokens: Optional[int],
+        completion_tokens: Optional[int],
+    ) -> Optional[int]:
         if usage is None:
-            return None if prompt_tokens is None and completion_tokens is None else (prompt_tokens or 0) + (completion_tokens or 0)
+            return (
+                None
+                if prompt_tokens is None and completion_tokens is None
+                else (prompt_tokens or 0) + (completion_tokens or 0)
+            )
 
         if "total_tokens" in usage:
             return self._to_int(usage.get("total_tokens"))
         if "totalTokenCount" in usage:
             return self._to_int(usage.get("totalTokenCount"))
-        return None if prompt_tokens is None and completion_tokens is None else (prompt_tokens or 0) + (completion_tokens or 0)
+        return (
+            None
+            if prompt_tokens is None and completion_tokens is None
+            else (prompt_tokens or 0) + (completion_tokens or 0)
+        )
 
     @staticmethod
     def _estimate_prompt_tokens(prompt_text: Optional[str]) -> Optional[int]:
@@ -152,20 +165,65 @@ class TokenUsageLogger:
         except (TypeError, ValueError):
             return None
 
-    def _write_console_log(self, record: TokenUsageRecord) -> None:
-        prompt_tokens = "unavailable" if record.prompt_tokens is None else str(record.prompt_tokens)
-        completion_tokens = "unavailable" if record.completion_tokens is None else str(record.completion_tokens)
-        total_tokens = "unavailable" if record.total_tokens is None else str(record.total_tokens)
+    def _write_log(self, record: TokenUsageRecord) -> None:
+        """Emit token usage as structured log lines via the logging framework.
 
-        print(
-            f"Resume: {record.resume_filename}\n"
-            f"Provider: {record.provider}\n"
-            f"Model: {record.model_name}\n"
-            f"Prompt Tokens: {prompt_tokens}\n"
-            f"Completion Tokens: {completion_tokens}\n"
-            f"Total Tokens: {total_tokens}\n"
-            f"Processing Time: {record.processing_time_seconds:.2f}s"
+        Previously used print(), which is invisible to uvicorn's log pipeline
+        and any file/aggregator log handlers. Now uses logger.info() so output
+        appears wherever the app's logging is configured to send it.
+        """
+        prompt_tokens = "unavailable" if record.prompt_tokens is None else record.prompt_tokens
+        completion_tokens = "unavailable" if record.completion_tokens is None else record.completion_tokens
+        total_tokens = "unavailable" if record.total_tokens is None else record.total_tokens
+
+        logger.info(
+            "Token usage | resume=%s | provider=%s | model=%s | key=%s | "
+            "prompt_tokens=%s | completion_tokens=%s | total_tokens=%s | time=%.2fs",
+            record.resume_filename,
+            record.provider,
+            record.model_name,
+            record.api_key_identifier,
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+            record.processing_time_seconds,
         )
+
+
+def safe_record_usage(
+    token_logger: TokenUsageLogger,
+    *,
+    resume_filename: str,
+    provider_adapter: ProviderAdapter,
+    response: Optional[Mapping[str, Any]] = None,
+    prompt_text: Optional[str] = None,
+    processing_started_at: Optional[float] = None,
+    api_key_identifier: Optional[str] = None,
+    model_name: Optional[str] = None,
+) -> Optional[TokenUsageRecord]:
+    """Record token usage without interrupting the main screening flow.
+
+    Failures are logged at ERROR level (previously WARNING) so they are
+    visible in production log streams and not silently discarded.
+    """
+    try:
+        return token_logger.record_usage(
+            resume_filename=resume_filename,
+            provider_adapter=provider_adapter,
+            response=response,
+            prompt_text=prompt_text,
+            processing_started_at=processing_started_at,
+            api_key_identifier=api_key_identifier,
+            model_name=model_name,
+        )
+    except Exception as exc:  # pragma: no cover - defensive logging path
+        logger.error(
+            "Token usage logging FAILED for %s: %s",
+            resume_filename,
+            exc,
+            exc_info=True,
+        )
+        return None
 
 
 class GroqProviderAdapter:
@@ -199,6 +257,29 @@ class OpenRouterProviderAdapter:
 
     def get_provider_name(self) -> str:
         return "OpenRouter"
+
+    def get_model_name(self, response: Mapping[str, Any]) -> str:
+        model_name = response.get("model") or response.get("model_name") or ""
+        return str(model_name or "unknown")
+
+    def get_api_key_identifier(self) -> str:
+        return self._api_key_identifier
+
+    def get_usage(self, response: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
+        usage = response.get("usage") or response.get("token_usage") or response.get("usage_details")
+        if isinstance(usage, Mapping):
+            return usage
+        return None
+
+
+class GoogleProviderAdapter:
+    """Adapter for Google-style responses."""
+
+    def __init__(self, api_key_identifier: str = "Google") -> None:
+        self._api_key_identifier = api_key_identifier
+
+    def get_provider_name(self) -> str:
+        return "Google"
 
     def get_model_name(self, response: Mapping[str, Any]) -> str:
         model_name = response.get("model") or response.get("model_name") or ""

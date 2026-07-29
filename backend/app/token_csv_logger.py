@@ -14,9 +14,10 @@ class TokenCSVLogger:
     """
 
     def __init__(self, csv_path: Optional[str | Path] = None) -> None:
-        self.csv_path = Path(csv_path or Path(__file__).resolve().parent / "token_usage_log.csv")
+        self.csv_path = Path(csv_path or Path(__file__).resolve().parent.parent / "token_usage_log.csv")
         self.csv_path.parent.mkdir(parents=True, exist_ok=True)
         self._ensure_header()
+        self._migrate_legacy_rows()
 
     @staticmethod
     def fieldnames() -> list[str]:
@@ -43,6 +44,35 @@ class TokenCSVLogger:
         with self.csv_path.open("a", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=self.fieldnames())
             writer.writerow(self._normalize_record(record))
+
+    def _migrate_legacy_rows(self) -> None:
+        legacy_path = Path(__file__).resolve().parent / "token_usage_log.csv"
+        if not legacy_path.exists() or legacy_path.resolve() == self.csv_path.resolve():
+            return
+
+        with legacy_path.open("r", newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+
+        if not rows:
+            legacy_path.unlink(missing_ok=True)
+            return
+
+        existing_rows: set[tuple[str, ...]] = set()
+        if self.csv_path.exists() and self.csv_path.stat().st_size > 0:
+            with self.csv_path.open("r", newline="", encoding="utf-8") as handle:
+                existing_rows = {tuple(row[field] for field in self.fieldnames()) for row in csv.DictReader(handle)}
+
+        with self.csv_path.open("a", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=self.fieldnames())
+            for row in rows:
+                normalized = self._normalize_record(row)
+                row_key = tuple(str(normalized.get(field, "")) for field in self.fieldnames())
+                if row_key in existing_rows:
+                    continue
+                writer.writerow(normalized)
+                existing_rows.add(row_key)
+
+        legacy_path.unlink(missing_ok=True)
 
     def _normalize_record(self, record: Mapping[str, Any]) -> Dict[str, Any]:
         return {

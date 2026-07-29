@@ -25,16 +25,12 @@ class ResumeResult(BaseModel):
     file_name: str
     candidate_name: str
     decision: Decision
-    skills_summary: str
-    education_summary: str
-    experience_summary: str
-    reason: str
+    summary: str
     error: Optional[str] = None
     match_score: Optional[float] = Field(default=None, ge=0, le=100)
+    # Structured fields used by job_rules.py for deterministic policy checks
     education_level: Optional[str] = None
-    education_relevant: Optional[bool] = None
     experience_years: Optional[int] = None
-    experience_relevant: Optional[bool] = None
     skills_match: Optional[bool] = None
 
 

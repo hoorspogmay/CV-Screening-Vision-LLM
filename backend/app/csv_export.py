@@ -8,11 +8,11 @@ CSV_COLUMNS = [
     "Candidate Name",
     "File Name",
     "Decision",
-    "Skills Summary",
-    "Education Summary",
-    "Experience Summary",
-    "Reason",
+    "Summary",
     "Match Score",
+    "Education Level",
+    "Experience Years",
+    "Skills Match",
 ]
 
 
@@ -28,11 +28,11 @@ def results_to_csv(results: list[ResumeResult]) -> str:
             result.candidate_name,
             result.file_name,
             result.decision.value,
-            result.skills_summary,
-            result.education_summary,
-            result.experience_summary,
-            result.reason,
+            result.summary,
             result.match_score,
+            result.education_level or "",
+            result.experience_years if result.experience_years is not None else "",
+            result.skills_match if result.skills_match is not None else "",
         ])
 
     return buffer.getvalue()
