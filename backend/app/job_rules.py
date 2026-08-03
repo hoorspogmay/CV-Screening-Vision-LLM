@@ -21,7 +21,14 @@ def _determine_decision(requirements: JobRequirements, ai_payload: dict[str, Any
     experience_relevant = bool(ai_payload.get("experience_relevant", True))
     skills_match = bool(ai_payload.get("skills_match", True))
 
-    if not education_relevant or not experience_relevant or not skills_match:
+    if not education_relevant or not experience_relevant:
+        return Decision.REJECT
+
+    if not skills_match:
+        summary = str(ai_payload.get("skills_summary") or "").lower()
+        reason = str(ai_payload.get("reason") or "").lower()
+        if "minor" in summary or "minor" in reason or "one" in summary or "one" in reason:
+            return Decision.ACCEPT
         return Decision.REJECT
 
     if requirements.required_education:

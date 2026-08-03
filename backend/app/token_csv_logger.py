@@ -30,6 +30,8 @@ class TokenCSVLogger:
             "completion_tokens",
             "total_tokens",
             "processing_time_seconds",
+
+            "f1_score",
         ]
 
     def _ensure_header(self) -> None:
@@ -84,6 +86,7 @@ class TokenCSVLogger:
             "completion_tokens": self._format_value(record.get("completion_tokens")),
             "total_tokens": self._format_value(record.get("total_tokens")),
             "processing_time_seconds": self._format_value(record.get("processing_time_seconds")),
+            "f1_score": self._format_value(record.get("f1_score")),
         }
 
     @staticmethod

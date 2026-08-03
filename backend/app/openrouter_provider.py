@@ -13,6 +13,7 @@ from app.schemas import Decision, ResumeResult
 from app.job_requirements import JobRequirements
 from app.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.providers_base import AIProvider
+from app.decision_utils import classify_by_match_score
 from app.token_logger import OpenRouterProviderAdapter, TokenUsageLogger, safe_record_usage
 
 logger = logging.getLogger(__name__)
@@ -39,9 +40,10 @@ class OpenRouterProvider(AIProvider):
         file_name: str,
         file_id: str,
         requirements: JobRequirements | None = None,
+        recruitment_document_text: str | None = None,
     ) -> ResumeResult:
         start_time = time.time()  # must use time.time() — perf_counter() breaks token_logger duration calc
-        prompt_text = build_user_prompt(resume_text, requirements)
+        prompt_text = build_user_prompt(resume_text, requirements, recruitment_document_text)
 
         if not self._api_keys:
             logger.error("OpenRouter API key is not configured. Set OPENROUTER_API_KEY in your .env file.")
@@ -111,7 +113,7 @@ class OpenRouterProvider(AIProvider):
                             api_key_identifier=key_label,
                             model_name=self._model,
                         )
-                        return self._parse_response(content, file_name, file_id, resume_text)
+                        return self._parse_response(content, file_name, file_id, resume_text, requirements)
                     except (httpx.HTTPError, KeyError, json.JSONDecodeError) as exc:
                         last_error = exc
                         self._failed_keys[api_key] = self._failed_keys.get(api_key, 0) + 1
@@ -141,7 +143,13 @@ class OpenRouterProvider(AIProvider):
         raise RuntimeError(f"OpenRouter evaluation failed after {self._max_retries} attempts: {last_error}")
 
     @staticmethod
-    def _parse_response(content: str, file_name: str, file_id: str, resume_text: str) -> ResumeResult:
+    def _parse_response(
+        content: str,
+        file_name: str,
+        file_id: str,
+        resume_text: str,
+        requirements: JobRequirements | None = None,
+    ) -> ResumeResult:
         cleaned = content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         data = json.loads(cleaned)
 
@@ -149,14 +157,20 @@ class OpenRouterProvider(AIProvider):
         if not candidate_name or candidate_name.lower() in {"unknown", "n/a", "null"}:
             candidate_name = "Unknown"
 
-        decision_value = str(data.get("decision") or "").strip().upper()
-        if decision_value not in {Decision.ACCEPT.value, Decision.REJECT.value}:
-            decision_value = Decision.REJECT.value
-
         try:
             match_score = float(data.get("match_score", 0))
         except (TypeError, ValueError):
             match_score = 0.0
+
+        decision_value = str(data.get("decision") or "").strip().upper()
+        if decision_value not in {Decision.ACCEPT.value, Decision.REJECT.value, Decision.DOUBTFUL.value}:
+            summary = str(data.get("summary") or data.get("reason") or "")
+            decision_value = classify_by_match_score(
+                match_score,
+                Decision.REJECT,
+                requirements,
+                reasoning=summary,
+            ).value
 
         try:
             experience_years = int(data.get("experience_years") or 0)

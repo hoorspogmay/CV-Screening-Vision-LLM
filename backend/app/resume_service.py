@@ -30,6 +30,14 @@ from app.ai_provider import get_ai_provider, get_fallback_provider
 from app.job_requirements import JobRequirements
 from app.job_rules import apply_business_rules
 from app.file_utils import extract_text
+from app.decision_utils import classify_by_match_score
+
+
+class RecruitmentDocumentContext:
+    """Small container for the full recruitment document text associated with a job."""
+
+    def __init__(self, document_text: str = "") -> None:
+        self.document_text = document_text or ""
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +51,7 @@ class JobState:
     subscribers: list[asyncio.Queue] = field(default_factory=list)
     temp_dir: Path | None = None
     requirements: JobRequirements | None = None
+    recruitment_document_context: RecruitmentDocumentContext | None = None
 
     @property
     def processed(self) -> int:
@@ -83,9 +92,19 @@ class JobManager:
     def __init__(self) -> None:
         self._jobs: dict[str, JobState] = {}
 
-    def create_job(self, total_files: int, requirements: JobRequirements | None = None) -> JobState:
+    def create_job(
+        self,
+        total_files: int,
+        requirements: JobRequirements | None = None,
+        recruitment_document_context: RecruitmentDocumentContext | None = None,
+    ) -> JobState:
         job_id = str(uuid.uuid4())
-        job = JobState(job_id=job_id, total=total_files, requirements=requirements)
+        job = JobState(
+            job_id=job_id,
+            total=total_files,
+            requirements=requirements,
+            recruitment_document_context=recruitment_document_context,
+        )
         self._jobs[job_id] = job
         return job
 
@@ -132,7 +151,13 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
     primary_provider = get_ai_provider()
     try:
         text = await asyncio.to_thread(extract_text, file_path)
-        result = await primary_provider.evaluate_resume(text, file_name, file_id, requirements=job.requirements)
+        result = await primary_provider.evaluate_resume(
+            text,
+            file_name,
+            file_id,
+            requirements=job.requirements,
+            recruitment_document_text=(job.recruitment_document_context.document_text if job.recruitment_document_context else ""),
+        )
         return _finalize_result(result, job.requirements)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Primary provider failed for %s: %s", file_name, exc)
@@ -142,7 +167,13 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
 
         try:
             text = await asyncio.to_thread(extract_text, file_path)
-            result = await fallback.evaluate_resume(text, file_name, file_id, requirements=job.requirements)
+            result = await fallback.evaluate_resume(
+                text,
+                file_name,
+                file_id,
+                requirements=job.requirements,
+                recruitment_document_text=(job.recruitment_document_context.document_text if job.recruitment_document_context else ""),
+            )
             return _finalize_result(result, job.requirements)
         except Exception as fallback_exc:  # noqa: BLE001
             logger.warning("Fallback provider also failed for %s: %s", file_name, fallback_exc)
@@ -175,26 +206,15 @@ def _finalize_result(result: ResumeResult, requirements: JobRequirements | None)
             return result
 
     # Step 2 — score drives the final decision
-    final_decision = _classify_by_match_score(result.match_score, result.decision)
+    final_decision = classify_by_match_score(
+        result.match_score,
+        result.decision,
+        requirements,
+        reasoning=result.summary,
+    )
     if final_decision == result.decision:
         return result
     return result.model_copy(update={"decision": final_decision})
-
-
-def _classify_by_match_score(match_score: float | None, fallback_decision: Decision) -> Decision:
-    if match_score is None:
-        return fallback_decision
-
-    try:
-        score = float(match_score)
-    except (TypeError, ValueError):
-        return fallback_decision
-
-    if score >= 80:
-        return Decision.ACCEPT
-    if score >= 50:
-        return Decision.DOUBTFUL
-    return Decision.REJECT
 
 
 async def run_screening_job(job: JobState, file_paths: list[tuple[Path, str]]) -> None:

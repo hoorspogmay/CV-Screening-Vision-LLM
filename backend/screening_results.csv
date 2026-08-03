@@ -1,0 +1,151 @@
+CV No.,Name,File,Profession,Status,Reason
+1,Imran Baig,01_Imran_Baig.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+2,Ayesha Mirza,02_Ayesha_Mirza.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+3,Warda Mirza,03_Warda_Mirza.pdf,Finance,Accepted,"Score=93 | Degree=full | Skills=6 matched (sap,cost analysis,quickbooks…) | Exp=internship experience | Jobs=1 | Certs=no"
+4,Salman Gill,04_Salman_Gill.pdf,Finance,Accepted,"Score=103 | Degree=full | Skills=7 matched (cost analysis,xero,ifrs…) | Exp=career changer | Jobs=1 | Certs=yes"
+5,Yasir Chaudhry,05_Yasir_Chaudhry.pdf,Human Resources,Accepted,"Score=98 | Degree=full | Skills=10 matched (talent acquisition,benefits administration,onboarding…) | Exp=candidate with employment gap | Jobs=2 | Certs=yes"
+6,Yasir Raza,06_Yasir_Raza.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+7,Omar Abbasi,07_Omar_Abbasi.pdf,Marketing,Accepted,"Score=98 | Degree=full | Skills=9 matched (social media strategy,brand management,google ads…) | Exp=mid-level professional | Jobs=2 | Certs=no"
+8,Salman Baig,08_Salman_Baig.pdf,Civil Engineering,Accepted,"Score=98 | Degree=full | Skills=6 matched (highway engineering,primavera p6,autocad civil 3d…) | Exp=candidate with employment gap | Jobs=2 | Certs=yes"
+9,Bushra Baig,09_Bushra_Baig.pdf,Finance,Accepted,"Score=105 | Degree=full | Skills=7 matched (ifrs,reconciliation,payroll…) | Exp=overqualified candidate | Jobs=4 | Certs=no"
+10,Iqra Rehman,10_Iqra_Rehman.pdf,Civil Engineering,Accepted,"Score=98 | Degree=full | Skills=9 matched (reinforced concrete,etabs,staad pro…) | Exp=candidate with employment gap | Jobs=2 | Certs=yes"
+11,Adeel Javed,11_Adeel_Javed.pdf,Marketing,Accepted,"Score=93 | Degree=full | Skills=9 matched (brand management,hubspot,google ads…) | Exp=internship experience | Jobs=1 | Certs=no"
+12,Hassan Mirza,12_Hassan_Mirza.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+13,Maria Abbasi,13_Maria_Abbasi.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+14,Zara Qureshi,14_Zara_Qureshi.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+15,Kashif Mirza,15_Kashif_Mirza.pdf,Mechanical Engineering,Accepted,"Score=103 | Degree=full | Skills=7 matched (six sigma,hvac,fea…) | Exp=career changer | Jobs=1 | Certs=yes"
+16,Usman Khan,16_Usman_Khan.pdf,Civil Engineering,Accepted,"Score=88 | Degree=full | Skills=7 matched (reinforced concrete,etabs,primavera p6…) | Exp=fresh graduate | Jobs=0 | Certs=no"
+17,Danish Aslam,17_Danish_Aslam.pdf,Legal,Accepted,"Score=93 | Degree=full | Skills=9 matched (due diligence,contract drafting,corporate law…) | Exp=fresh graduate | Jobs=0 | Certs=yes"
+18,Laiba Baig,18_Laiba_Baig.pdf,Finance,Accepted,"Score=105 | Degree=full | Skills=9 matched (sap,reconciliation,internal audit…) | Exp=overqualified candidate | Jobs=4 | Certs=no"
+19,Usman Iqbal,19_Usman_Iqbal.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+20,Iqra Gill,20_Iqra_Gill.pdf,Human Resources,Accepted,"Score=98 | Degree=full | Skills=9 matched (talent acquisition,benefits administration,workforce planning…) | Exp=freelancer | Jobs=2 | Certs=yes"
+21,Rabia Gill,21_Rabia_Gill.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+22,Maria Chaudhry,22_Maria_Chaudhry.pdf,Legal,Accepted,"Score=103 | Degree=full | Skills=8 matched (compliance,contract drafting,litigation…) | Exp=career changer | Jobs=1 | Certs=yes"
+23,Alina Rehman,23_Alina_Rehman.pdf,Software Engineering,Accepted,"Score=110 | Degree=full | Skills=8 matched (flask,docker,vue.js…) | Exp=senior professional | Jobs=3 | Certs=yes"
+24,Zeeshan Qureshi,24_Zeeshan_Qureshi.pdf,Legal,Accepted,"Score=98 | Degree=full | Skills=10 matched (compliance,corporate law,litigation…) | Exp=internship experience | Jobs=1 | Certs=yes"
+25,Bushra Hussain,25_Bushra_Hussain.pdf,Marketing,Accepted,"Score=105 | Degree=full | Skills=8 matched (brand management,social media strategy,google analytics…) | Exp=senior professional | Jobs=3 | Certs=no"
+26,Waqas Raza,26_Waqas_Raza.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+27,Rabia Chaudhry,27_Rabia_Chaudhry.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+28,Salman Awan,28_Salman_Awan.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+29,Fatima Siddiqui,29_Fatima_Siddiqui.pdf,Mechanical Engineering,Accepted,"Score=110 | Degree=full | Skills=10 matched (six sigma,root cause analysis,ansys…) | Exp=senior professional | Jobs=3 | Certs=yes"
+30,Talha Raza,30_Talha_Raza.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+31,Naveed Rehman,31_Naveed_Rehman.pdf,Finance,Accepted,"Score=98 | Degree=full | Skills=9 matched (cost analysis,xero,ifrs…) | Exp=career changer | Jobs=1 | Certs=no"
+32,Areeba Chaudhry,32_Areeba_Chaudhry.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+33,Zeeshan Raza,33_Zeeshan_Raza.pdf,Software Engineering,Accepted,"Score=98 | Degree=full | Skills=8 matched (postgresql,angular,flask…) | Exp=junior professional | Jobs=1 | Certs=no"
+34,Warda Malik,34_Warda_Malik.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+35,Talha Qureshi,35_Talha_Qureshi.pdf,Human Resources,Accepted,"Score=105 | Degree=full | Skills=8 matched (talent acquisition,benefits administration,workforce planning…) | Exp=overqualified candidate | Jobs=4 | Certs=no"
+36,Waqas Hussain,36_Waqas_Hussain.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+37,Maria Siddiqui,37_Maria_Siddiqui.pdf,Marketing,Accepted,"Score=98 | Degree=full | Skills=10 matched (brand management,marketing automation,google ads…) | Exp=junior professional | Jobs=1 | Certs=no"
+38,Sidra Javed,38_Sidra_Javed.pdf,Mechanical Engineering,Accepted,"Score=98 | Degree=full | Skills=10 matched (six sigma,autocad,root cause analysis…) | Exp=junior professional | Jobs=1 | Certs=no"
+39,Sana Aslam,39_Sana_Aslam.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+40,Junaid Malik,40_Junaid_Malik.pdf,Mechanical Engineering,Accepted,"Score=93 | Degree=full | Skills=6 matched (hvac,fea,cnc…) | Exp=underqualified candidate | Jobs=1 | Certs=yes"
+41,Bilal Javed,41_Bilal_Javed.pdf,Legal,Accepted,"Score=88 | Degree=full | Skills=8 matched (contract drafting,corporate law,litigation…) | Exp=underqualified candidate | Jobs=1 | Certs=no"
+42,Zeeshan Javed,42_Zeeshan_Javed.pdf,Civil Engineering,Accepted,"Score=103 | Degree=full | Skills=10 matched (reinforced concrete,highway engineering,etabs…) | Exp=career changer | Jobs=1 | Certs=yes"
+43,Fatima Baig,43_Fatima_Baig.pdf,Mechanical Engineering,Accepted,"Score=98 | Degree=full | Skills=8 matched (six sigma,hvac,cnc…) | Exp=freelancer | Jobs=2 | Certs=yes"
+44,Daniyal Iqbal,44_Daniyal_Iqbal.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+45,Sidra Siddiqui,45_Sidra_Siddiqui.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+46,Sadia Qureshi,46_Sadia_Qureshi.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+47,Rabia Mirza,47_Rabia_Mirza.pdf,Software Engineering,Accepted,"Score=88 | Degree=full | Skills=7 matched (postgresql,nestjs,redis…) | Exp=fresh graduate | Jobs=0 | Certs=no"
+48,Ali Hussain,48_Ali_Hussain.pdf,Software Engineering,Accepted,"Score=98 | Degree=full | Skills=6 matched (react native,redis,sql server…) | Exp=candidate with employment gap | Jobs=2 | Certs=yes"
+49,Naveed Gill,49_Naveed_Gill.pdf,Human Resources,Accepted,"Score=105 | Degree=full | Skills=7 matched (talent acquisition,employee relations,recruitment…) | Exp=overqualified candidate | Jobs=4 | Certs=no"
+50,Shahzaib Awan,50_Shahzaib_Awan.pdf,Civil Engineering,Accepted,"Score=103 | Degree=full | Skills=10 matched (reinforced concrete,highway engineering,etabs…) | Exp=junior professional | Jobs=1 | Certs=yes"
+51,Danish Abbasi,51_Danish_Abbasi.pdf,Human Resources,Accepted,"Score=88 | Degree=full | Skills=7 matched (employee relations,recruitment,hris…) | Exp=fresh graduate | Jobs=0 | Certs=no"
+52,Zara Aslam,52_Zara_Aslam.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+53,Sara Niazi,53_Sara_Niazi.pdf,Finance,Accepted,"Score=105 | Degree=full | Skills=6 matched (sap,cost analysis,xero…) | Exp=overqualified candidate | Jobs=4 | Certs=no"
+54,Anum Aslam,54_Anum_Aslam.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+55,Bushra Chaudhry,55_Bushra_Chaudhry.pdf,Finance,Accepted,"Score=98 | Degree=full | Skills=10 matched (sap,xero,ifrs…) | Exp=mid-level professional | Jobs=2 | Certs=no"
+56,Kashif Khan,56_Kashif_Khan.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+57,Omar Aslam,57_Omar_Aslam.pdf,Civil Engineering,Accepted,"Score=93 | Degree=full | Skills=10 matched (reinforced concrete,highway engineering,staad pro…) | Exp=freelancer | Jobs=2 | Certs=no"
+58,Hamza Javed,58_Hamza_Javed.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+59,Zara Iqbal,59_Zara_Iqbal.pdf,Marketing,Accepted,"Score=105 | Degree=full | Skills=9 matched (brand management,google ads,conversion optimization…) | Exp=senior professional | Jobs=3 | Certs=no"
+60,Salman Niazi,60_Salman_Niazi.pdf,Legal,Accepted,"Score=103 | Degree=full | Skills=6 matched (compliance,arbitration,case management…) | Exp=mid-level professional | Jobs=2 | Certs=yes"
+61,Hamza Siddiqui,61_Hamza_Siddiqui.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+62,Zara Sheikh,62_Zara_Sheikh.pdf,Human Resources,Accepted,"Score=105 | Degree=full | Skills=8 matched (talent acquisition,benefits administration,recruitment…) | Exp=overqualified candidate | Jobs=4 | Certs=no"
+63,Talha Siddiqui,63_Talha_Siddiqui.pdf,Finance,Accepted,"Score=98 | Degree=full | Skills=9 matched (sap,xero,ifrs…) | Exp=internship experience | Jobs=1 | Certs=yes"
+64,Faisal Qureshi,64_Faisal_Qureshi.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+65,Farhan Baig,65_Farhan_Baig.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+66,Omar Chaudhry,66_Omar_Chaudhry.pdf,Human Resources,Accepted,"Score=98 | Degree=full | Skills=8 matched (talent acquisition,onboarding,employee relations…) | Exp=career changer | Jobs=1 | Certs=no"
+67,Zeeshan Khan,67_Zeeshan_Khan.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+68,Hira Sheikh,68_Hira_Sheikh.pdf,Civil Engineering,Accepted,"Score=103 | Degree=full | Skills=7 matched (reinforced concrete,staad pro,structural analysis…) | Exp=mid-level professional | Jobs=2 | Certs=yes"
+69,Warda Awan,69_Warda_Awan.pdf,Civil Engineering,Accepted,"Score=98 | Degree=full | Skills=10 matched (reinforced concrete,highway engineering,etabs…) | Exp=junior professional | Jobs=1 | Certs=no"
+70,Zara Butt,70_Zara_Butt.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+71,Noor Butt,71_Noor_Butt.pdf,Marketing,Accepted,"Score=105 | Degree=full | Skills=10 matched (hubspot,email marketing,google ads…) | Exp=overqualified candidate | Jobs=4 | Certs=no"
+72,Rabia Malik,72_Rabia_Malik.pdf,Software Engineering,Accepted,"Score=105 | Degree=full | Skills=9 matched (postgresql,flask,mysql…) | Exp=overqualified candidate | Jobs=4 | Certs=no"
+73,Nimra Niazi,73_Nimra_Niazi.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+74,Ahmed Chaudhry,74_Ahmed_Chaudhry.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+75,Usman Gill,75_Usman_Gill.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+76,Hassan Javed,76_Hassan_Javed.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+77,Usman Javed,77_Usman_Javed.pdf,Software Engineering,Accepted,"Score=88 | Degree=full | Skills=7 matched (react native,mysql,mongodb…) | Exp=underqualified candidate | Jobs=1 | Certs=no"
+78,Laiba Gill,78_Laiba_Gill.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+79,Sadia Farooq,79_Sadia_Farooq.pdf,Human Resources,Accepted,"Score=110 | Degree=full | Skills=7 matched (workforce planning,benefits administration,payroll coordination…) | Exp=senior professional | Jobs=3 | Certs=yes"
+80,Mahnoor Butt,80_Mahnoor_Butt.pdf,Mechanical Engineering,Accepted,"Score=93 | Degree=full | Skills=8 matched (root cause analysis,hvac,autocad…) | Exp=internship experience | Jobs=1 | Certs=no"
+81,Iqra Malik,81_Iqra_Malik.pdf,Legal,Accepted,"Score=110 | Degree=full | Skills=8 matched (compliance,corporate law,contract drafting…) | Exp=senior professional | Jobs=3 | Certs=yes"
+82,Warda Gill,82_Warda_Gill.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+83,Yasir Rehman,83_Yasir_Rehman.pdf,Mechanical Engineering,Accepted,"Score=98 | Degree=full | Skills=6 matched (autocad,solidworks,catia…) | Exp=candidate with employment gap | Jobs=2 | Certs=yes"
+84,Anum Khan,84_Anum_Khan.pdf,Human Resources,Accepted,"Score=103 | Degree=full | Skills=10 matched (talent acquisition,benefits administration,employee relations…) | Exp=career changer | Jobs=1 | Certs=yes"
+85,Ayesha Iqbal,85_Ayesha_Iqbal.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+86,Hassan Rehman,86_Hassan_Rehman.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+87,Fatima Javed,87_Fatima_Javed.pdf,Mechanical Engineering,Accepted,"Score=103 | Degree=full | Skills=8 matched (six sigma,autocad,hvac…) | Exp=junior professional | Jobs=1 | Certs=yes"
+88,Naveed Sheikh,88_Naveed_Sheikh.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+89,Anum Raza,89_Anum_Raza.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+90,Bushra Iqbal,90_Bushra_Iqbal.pdf,Finance,Accepted,"Score=93 | Degree=full | Skills=8 matched (sap,cost analysis,reconciliation…) | Exp=candidate with employment gap | Jobs=2 | Certs=no"
+91,Tehreem Farooq,91_Tehreem_Farooq.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+92,Rabia Iqbal,92_Rabia_Iqbal.pdf,Civil Engineering,Accepted,"Score=103 | Degree=full | Skills=7 matched (highway engineering,reinforced concrete,staad pro…) | Exp=junior professional | Jobs=1 | Certs=yes"
+93,Bushra Farooq,93_Bushra_Farooq.pdf,Legal,Accepted,"Score=98 | Degree=full | Skills=8 matched (contract drafting,compliance,litigation…) | Exp=candidate with employment gap | Jobs=2 | Certs=yes"
+94,Sidra Baig,94_Sidra_Baig.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+95,Hira Gill,95_Hira_Gill.pdf,Human Resources,Accepted,"Score=105 | Degree=full | Skills=10 matched (workforce planning,benefits administration,employee relations…) | Exp=senior professional | Jobs=3 | Certs=no"
+96,Junaid Iqbal,96_Junaid_Iqbal.pdf,Software Engineering,Accepted,"Score=103 | Degree=full | Skills=9 matched (postgresql,gcp,flask…) | Exp=junior professional | Jobs=1 | Certs=yes"
+97,Hamza Qureshi,97_Hamza_Qureshi.pdf,Software Engineering,Accepted,"Score=98 | Degree=full | Skills=10 matched (react native,angular,flask…) | Exp=internship experience | Jobs=1 | Certs=yes"
+98,Waqas Niazi,98_Waqas_Niazi.pdf,Software Engineering,Accepted,"Score=98 | Degree=full | Skills=9 matched (postgresql,mysql,redis…) | Exp=candidate with employment gap | Jobs=2 | Certs=yes"
+99,Zara Baig,99_Zara_Baig.pdf,Civil Engineering,Accepted,"Score=98 | Degree=full | Skills=6 matched (reinforced concrete,staad pro,quantity surveying…) | Exp=internship experience | Jobs=1 | Certs=yes"
+100,Danish Chaudhry,100_Danish_Chaudhry.pdf,Finance,Accepted,"Score=93 | Degree=full | Skills=6 matched (cost analysis,xero,variance analysis…) | Exp=fresh graduate | Jobs=0 | Certs=yes"
+101,Kashif Raza,101_Kashif_Raza.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+102,Hamza Malik,102_Hamza_Malik.pdf,Civil Engineering,Accepted,"Score=88 | Degree=full | Skills=10 matched (highway engineering,reinforced concrete,etabs…) | Exp=underqualified candidate | Jobs=1 | Certs=no"
+103,Mehak Niazi,103_Mehak_Niazi.pdf,Finance,Accepted,"Score=88 | Degree=full | Skills=9 matched (sap,cost analysis,xero…) | Exp=underqualified candidate | Jobs=1 | Certs=no"
+104,Sana Baig,104_Sana_Baig.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+105,Mehak Gill,105_Mehak_Gill.pdf,Marketing,Accepted,"Score=105 | Degree=full | Skills=6 matched (sem,conversion optimization,campaign management…) | Exp=overqualified candidate | Jobs=4 | Certs=no"
+106,Kashif Qureshi,106_Kashif_Qureshi.pdf,Legal,Accepted,"Score=93 | Degree=full | Skills=9 matched (contract drafting,corporate law,litigation…) | Exp=freelancer | Jobs=2 | Certs=no"
+107,Iqra Siddiqui,107_Iqra_Siddiqui.pdf,Mechanical Engineering,Accepted,"Score=93 | Degree=full | Skills=9 matched (autocad,fea,ansys…) | Exp=fresh graduate | Jobs=0 | Certs=yes"
+108,Junaid Sheikh,108_Junaid_Sheikh.pdf,Finance,Accepted,"Score=93 | Degree=full | Skills=6 matched (cost analysis,xero,reconciliation…) | Exp=freelancer | Jobs=2 | Certs=no"
+109,Anum Rehman,109_Anum_Rehman.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+110,Mahnoor Farooq,110_Mahnoor_Farooq.pdf,Software Engineering,Accepted,"Score=98 | Degree=full | Skills=6 matched (flask,redis,kubernetes…) | Exp=career changer | Jobs=1 | Certs=no"
+111,Ahmed Khan,111_Ahmed_Khan.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+112,Alina Siddiqui,112_Alina_Siddiqui.pdf,Software Engineering,Accepted,"Score=103 | Degree=full | Skills=9 matched (gcp,mongodb,redis…) | Exp=junior professional | Jobs=1 | Certs=yes"
+113,Hassan Niazi,113_Hassan_Niazi.pdf,Legal,Accepted,"Score=93 | Degree=full | Skills=10 matched (compliance,corporate law,litigation…) | Exp=freelancer | Jobs=2 | Certs=no"
+114,Usman Abbasi,114_Usman_Abbasi.pdf,Mechanical Engineering,Accepted,"Score=93 | Degree=full | Skills=8 matched (six sigma,fea,hvac…) | Exp=fresh graduate | Jobs=0 | Certs=yes"
+115,Anum Gill,115_Anum_Gill.pdf,Legal,Accepted,"Score=103 | Degree=full | Skills=9 matched (compliance,contract drafting,corporate law…) | Exp=mid-level professional | Jobs=2 | Certs=yes"
+116,Sidra Mirza,116_Sidra_Mirza.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+117,Junaid Farooq,117_Junaid_Farooq.pdf,Legal,Accepted,"Score=93 | Degree=full | Skills=6 matched (contract drafting,corporate law,arbitration…) | Exp=fresh graduate | Jobs=0 | Certs=yes"
+118,Nimra Siddiqui,118_Nimra_Siddiqui.pdf,Marketing,Accepted,"Score=93 | Degree=full | Skills=10 matched (sem,brand management,email marketing…) | Exp=freelancer | Jobs=2 | Certs=no"
+119,Asad Qureshi,119_Asad_Qureshi.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+120,Fatima Niazi,120_Fatima_Niazi.pdf,Marketing,Accepted,"Score=98 | Degree=full | Skills=7 matched (sem,brand management,conversion optimization…) | Exp=mid-level professional | Jobs=2 | Certs=no"
+121,Farhan Siddiqui,121_Farhan_Siddiqui.pdf,Software Engineering,Accepted,"Score=93 | Degree=full | Skills=8 matched (angular,mysql,kubernetes…) | Exp=underqualified candidate | Jobs=1 | Certs=yes"
+122,Salman Abbasi,122_Salman_Abbasi.pdf,Mechanical Engineering,Accepted,"Score=105 | Degree=full | Skills=7 matched (root cause analysis,ansys,hvac…) | Exp=senior professional | Jobs=3 | Certs=no"
+123,Warda Aslam,123_Warda_Aslam.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+124,Alina Chaudhry,124_Alina_Chaudhry.pdf,Software Engineering,Accepted,"Score=98 | Degree=full | Skills=8 matched (react native,mongodb,asp.net…) | Exp=internship experience | Jobs=1 | Certs=yes"
+125,Waqas Khan,125_Waqas_Khan.pdf,Marketing,Accepted,"Score=93 | Degree=full | Skills=8 matched (brand management,email marketing,google analytics…) | Exp=internship experience | Jobs=1 | Certs=no"
+126,Hira Aslam,126_Hira_Aslam.pdf,Finance,Accepted,"Score=88 | Degree=full | Skills=8 matched (cost analysis,reconciliation,internal audit…) | Exp=fresh graduate | Jobs=0 | Certs=no"
+127,Sadia Butt,127_Sadia_Butt.pdf,Human Resources,Accepted,"Score=103 | Degree=full | Skills=9 matched (workforce planning,benefits administration,employee relations…) | Exp=career changer | Jobs=1 | Certs=yes"
+128,Kashif Baig,128_Kashif_Baig.pdf,Legal,Accepted,"Score=93 | Degree=full | Skills=10 matched (compliance,corporate law,litigation…) | Exp=underqualified candidate | Jobs=1 | Certs=yes"
+129,Imran Rehman,129_Imran_Rehman.pdf,Legal,Accepted,"Score=98 | Degree=full | Skills=8 matched (compliance,corporate law,litigation…) | Exp=freelancer | Jobs=2 | Certs=yes"
+130,Sara Javed,130_Sara_Javed.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+131,Hassan Malik,131_Hassan_Malik.pdf,Finance,Accepted,"Score=98 | Degree=full | Skills=7 matched (cost analysis,xero,internal audit…) | Exp=freelancer | Jobs=2 | Certs=yes"
+132,Rizwan Iqbal,132_Rizwan_Iqbal.pdf,Mechanical Engineering,Accepted,"Score=93 | Degree=full | Skills=9 matched (six sigma,root cause analysis,autocad…) | Exp=fresh graduate | Jobs=0 | Certs=yes"
+133,Ali Farooq,133_Ali_Farooq.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+134,Noor Awan,134_Noor_Awan.pdf,Human Resources,Accepted,"Score=105 | Degree=full | Skills=7 matched (talent acquisition,recruitment,payroll coordination…) | Exp=overqualified candidate | Jobs=4 | Certs=no"
+135,Ali Sheikh,135_Ali_Sheikh.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+136,Mehak Javed,136_Mehak_Javed.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+137,Iqra Javed,137_Iqra_Javed.pdf,Marketing,Accepted,"Score=98 | Degree=full | Skills=10 matched (sem,social media strategy,email marketing…) | Exp=mid-level professional | Jobs=2 | Certs=no"
+138,Usman Hussain,138_Usman_Hussain.pdf,Marketing,Accepted,"Score=105 | Degree=full | Skills=8 matched (sem,social media strategy,email marketing…) | Exp=senior professional | Jobs=3 | Certs=no"
+139,Adeel Butt,139_Adeel_Butt.pdf,Healthcare,Rejected,Profession 'Healthcare' not applicable to any open position
+140,Iqra Abbasi,140_Iqra_Abbasi.pdf,Civil Engineering,Accepted,"Score=88 | Degree=full | Skills=10 matched (highway engineering,reinforced concrete,etabs…) | Exp=underqualified candidate | Jobs=1 | Certs=no"
+141,Maria Iqbal,141_Maria_Iqbal.pdf,Civil Engineering,Accepted,"Score=98 | Degree=full | Skills=10 matched (reinforced concrete,highway engineering,etabs…) | Exp=career changer | Jobs=1 | Certs=no"
+142,Hamza Sheikh,142_Hamza_Sheikh.pdf,Marketing,Accepted,"Score=98 | Degree=full | Skills=7 matched (google ads,google analytics,conversion optimization…) | Exp=mid-level professional | Jobs=2 | Certs=no"
+143,Bilal Baig,143_Bilal_Baig.pdf,Data Science,Rejected,Profession 'Data Science' not applicable to any open position
+144,Mahnoor Abbasi,144_Mahnoor_Abbasi.pdf,Human Resources,Accepted,"Score=88 | Degree=full | Skills=6 matched (recruitment,payroll coordination,workday…) | Exp=underqualified candidate | Jobs=1 | Certs=no"
+145,Ahmed Farooq,145_Ahmed_Farooq.pdf,Civil Engineering,Accepted,"Score=103 | Degree=full | Skills=10 matched (reinforced concrete,highway engineering,etabs…) | Exp=career changer | Jobs=1 | Certs=yes"
+146,Kashif Siddiqui,146_Kashif_Siddiqui.pdf,Cybersecurity,Rejected,Profession 'Cybersecurity' not applicable to any open position
+147,Amna Gill,147_Amna_Gill.pdf,Mechanical Engineering,Accepted,"Score=98 | Degree=full | Skills=6 matched (six sigma,ansys,hvac…) | Exp=candidate with employment gap | Jobs=2 | Certs=yes"
+148,Asad Hussain,148_Asad_Hussain.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+149,Adeel Raza,149_Adeel_Raza.pdf,Education,Rejected,Profession 'Education' not applicable to any open position
+150,Nimra Abbasi,150_Nimra_Abbasi.pdf,Mechanical Engineering,Accepted,"Score=93 | Degree=full | Skills=8 matched (hvac,ansys,cnc…) | Exp=fresh graduate | Jobs=0 | Certs=yes"

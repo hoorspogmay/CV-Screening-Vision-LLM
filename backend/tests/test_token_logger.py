@@ -6,7 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from app.csv_export import results_to_csv
 from app.groq_provider import GroqProvider
+from app.schemas import Decision, ResumeResult
 from app.token_csv_logger import TokenCSVLogger
 from app.token_logger import GroqProviderAdapter, TokenUsageLogger, safe_record_usage
 
@@ -36,6 +38,67 @@ def test_safe_record_usage_writes_csv_and_returns_record(tmp_path: Path) -> None
     assert len(rows) == 1
     assert rows[0]["resume_filename"] == "resume.pdf"
     assert rows[0]["provider"] == "Groq"
+
+
+def test_safe_record_usage_writes_only_f1_metrics_to_csv(tmp_path: Path) -> None:
+    csv_path = tmp_path / "token_usage.csv"
+    csv_logger = TokenCSVLogger(csv_path=csv_path)
+    token_logger = TokenUsageLogger(csv_logger=csv_logger)
+
+    record = safe_record_usage(
+        token_logger,
+        resume_filename="resume.pdf",
+        provider_adapter=GroqProviderAdapter(api_key_identifier="groq-test"),
+        response={"usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}},
+        prompt_text="Software engineer with Python experience",
+        processing_started_at=time.time() - 0.2,
+        api_key_identifier="groq-test",
+        model_name="llama-3",
+        evaluation_metrics={"accuracy": 0.87, "precision": 0.84, "recall": 0.82, "f1_score": 0.83},
+    )
+
+    assert record.accuracy_score == 0.87
+    assert record.precision_score == 0.84
+    assert record.recall_score == 0.82
+    assert record.f1_score == 0.83
+
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert "accuracy_score" not in rows[0]
+    assert "precision_score" not in rows[0]
+    assert "recall_score" not in rows[0]
+    assert rows[0]["f1_score"] == "0.83"
+
+
+def test_results_to_csv_omits_metric_columns() -> None:
+    result = ResumeResult(
+        file_id="file-1",
+        file_name="resume.pdf",
+        candidate_name="Jane Doe",
+        decision=Decision.ACCEPT,
+        summary="Strong fit",
+        match_score=85,
+        education_level="Bachelor",
+        experience_years=5,
+        skills_match=True,
+    )
+
+    csv_text = results_to_csv([result])
+    rows = list(csv.reader(csv_text.splitlines()))
+
+    assert rows[0] == [
+        "Candidate Name",
+        "File Name",
+        "Decision",
+        "Summary",
+        "Match Score",
+        "Education Level",
+        "Experience Years",
+        "Skills Match",
+    ]
+    assert rows[1][0] == "Jane Doe"
+    assert len(rows[1]) == 8
 
 
 def test_csv_logger_writes_to_primary_and_legacy_paths(tmp_path: Path) -> None:

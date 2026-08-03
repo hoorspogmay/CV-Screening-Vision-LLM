@@ -10,6 +10,7 @@ No other file in the app changes.
 """
 from app.config import get_settings
 from app.providers_base import AIProvider
+from app.claude_provider import ClaudeProvider
 from app.google_provider import GoogleProvider
 from app.groq_provider import GroqProvider
 from app.openrouter_provider import OpenRouterProvider
@@ -18,6 +19,7 @@ PROVIDER_REGISTRY: dict[str, type[AIProvider]] = {
     "groq": GroqProvider,
     "openrouter": OpenRouterProvider,
     "google": GoogleProvider,
+    "claude": ClaudeProvider,
     # "gemini": GeminiProvider,        # implement and register when needed
     # "together": TogetherProvider,
     # "cerebras": CerebrasProvider,

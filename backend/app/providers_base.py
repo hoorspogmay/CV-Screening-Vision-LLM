@@ -21,6 +21,7 @@ class AIProvider(ABC):
         file_name: str,
         file_id: str,
         requirements: object | None = None,
+        recruitment_document_text: str | None = None,
     ) -> ResumeResult:
         """
         Send resume text to the LLM and return a structured ResumeResult.

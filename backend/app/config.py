@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     google_model: str = "google/gemma-4-31b-it:free"
     google_api_url: str = ""
 
+    # --- Claude ------------------------------------------------------------
+    claude_api_key: str = ""
+    claude_model: str = "claude-3-5-sonnet-latest"
+    claude_api_url: str = "https://api.anthropic.com/v1/messages"
+
     # --- Generic provider knobs (used by whichever provider is active) ------
     ai_request_timeout_seconds: int = 25
     ai_max_retries: int = 2

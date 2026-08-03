@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.evaluation import router as evaluation_router
 from app.screening import router as screening_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -26,6 +27,7 @@ app.add_middleware(
 )
 
 app.include_router(screening_router)
+app.include_router(evaluation_router)
 
 
 @app.get("/api/health")

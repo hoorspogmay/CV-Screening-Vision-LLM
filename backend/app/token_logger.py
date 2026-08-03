@@ -37,6 +37,10 @@ class TokenUsageRecord:
     completion_tokens: Optional[int]
     total_tokens: Optional[int]
     processing_time_seconds: float
+    accuracy_score: Optional[float] = None
+    precision_score: Optional[float] = None
+    recall_score: Optional[float] = None
+    f1_score: Optional[float] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -48,6 +52,10 @@ class TokenUsageRecord:
             "completion_tokens": self.completion_tokens,
             "total_tokens": self.total_tokens,
             "processing_time_seconds": round(self.processing_time_seconds, 2),
+            "accuracy_score": self.accuracy_score,
+            "precision_score": self.precision_score,
+            "recall_score": self.recall_score,
+            "f1_score": self.f1_score,
         }
 
 
@@ -75,6 +83,7 @@ class TokenUsageLogger:
         processing_started_at: Optional[float] = None,
         api_key_identifier: Optional[str] = None,
         model_name: Optional[str] = None,
+        evaluation_metrics: Optional[Mapping[str, Any]] = None,
     ) -> TokenUsageRecord:
         processing_started_at = processing_started_at or time.time()
         processing_time_seconds = round(max(time.time() - processing_started_at, 0.0), 2)
@@ -96,6 +105,10 @@ class TokenUsageLogger:
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
             processing_time_seconds=processing_time_seconds,
+            accuracy_score=self._coerce_metric(evaluation_metrics, "accuracy"),
+            precision_score=self._coerce_metric(evaluation_metrics, "precision"),
+            recall_score=self._coerce_metric(evaluation_metrics, "recall"),
+            f1_score=self._coerce_metric(evaluation_metrics, "f1_score"),
         )
 
         self._write_log(record)
@@ -143,6 +156,18 @@ class TokenUsageLogger:
             if prompt_tokens is None and completion_tokens is None
             else (prompt_tokens or 0) + (completion_tokens or 0)
         )
+
+    @staticmethod
+    def _coerce_metric(evaluation_metrics: Optional[Mapping[str, Any]], key: str) -> Optional[float]:
+        if not evaluation_metrics:
+            return None
+        value = evaluation_metrics.get(key)
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _estimate_prompt_tokens(prompt_text: Optional[str]) -> Optional[int]:
@@ -200,6 +225,7 @@ def safe_record_usage(
     processing_started_at: Optional[float] = None,
     api_key_identifier: Optional[str] = None,
     model_name: Optional[str] = None,
+    evaluation_metrics: Optional[Mapping[str, Any]] = None,
 ) -> Optional[TokenUsageRecord]:
     """Record token usage without interrupting the main screening flow.
 
@@ -215,6 +241,7 @@ def safe_record_usage(
             processing_started_at=processing_started_at,
             api_key_identifier=api_key_identifier,
             model_name=model_name,
+            evaluation_metrics=evaluation_metrics,
         )
     except Exception as exc:  # pragma: no cover - defensive logging path
         logger.error(

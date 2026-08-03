@@ -71,10 +71,7 @@ def test_final_classification_uses_score_bucket_for_doubtful() -> None:
         file_name="resume.pdf",
         candidate_name="Alice Example",
         decision=Decision.REJECT,
-        skills_summary="Candidate possesses the required skills.",
-        education_summary="Candidate meets the required education.",
-        experience_summary="Candidate has relevant experience.",
-        reason="Candidate is a partial match.",
+        summary="Candidate is a partial match.",
         match_score=60,
         education_level="Bachelor",
         education_relevant=True,
@@ -86,6 +83,52 @@ def test_final_classification_uses_score_bucket_for_doubtful() -> None:
     finalized = _finalize_result(result, requirements)
 
     assert finalized.decision == Decision.DOUBTFUL
+
+
+def test_skill_gap_does_not_hard_reject_when_overall_fit_is_good() -> None:
+    requirements = JobRequirements(job_role="Software Engineer", required_skills=["Python"])
+
+    decision, _ = apply_business_rules(
+        requirements,
+        {
+            "education_level": "Bachelor",
+            "education_relevant": True,
+            "experience_years": 3,
+            "experience_relevant": True,
+            "skills_match": False,
+            "reason": "Overall strong fit with one minor skill gap.",
+            "skills_summary": "Java, SQL, cloud deployment",
+        },
+    )
+
+    assert decision != Decision.REJECT
+
+
+def test_final_classification_uses_custom_thresholds() -> None:
+    requirements = JobRequirements(
+        job_role="Software Engineer",
+        required_education="Bachelor's",
+        min_experience=2,
+        accept_threshold=75,
+        doubtful_threshold=60,
+    )
+    result = ResumeResult(
+        file_id="resume-2",
+        file_name="resume-2.pdf",
+        candidate_name="Bob Example",
+        decision=Decision.REJECT,
+        summary="Candidate is a strong match.",
+        match_score=75,
+        education_level="Bachelor",
+        education_relevant=True,
+        experience_years=3,
+        experience_relevant=True,
+        skills_match=True,
+    )
+
+    finalized = _finalize_result(result, requirements)
+
+    assert finalized.decision == Decision.ACCEPT
 
 
 def test_build_job_requirements_from_text_extracts_role_and_skills() -> None:

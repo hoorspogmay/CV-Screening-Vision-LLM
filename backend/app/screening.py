@@ -15,6 +15,7 @@ from app.schemas import StartScreeningResponse, WSEvent, WSEventType
 from app.job_requirements import JobRequirements, build_job_requirements_from_text
 from app.file_utils import extract_text
 from app.resume_service import (
+    RecruitmentDocumentContext,
     job_manager,
     run_screening_job,
     save_uploads_to_temp,
@@ -36,6 +37,7 @@ async def start_screening(
         raise HTTPException(status_code=400, detail="No files were uploaded.")
 
     parsed_requirements: JobRequirements | None = None
+    recruitment_document_context: RecruitmentDocumentContext | None = None
     if job_spec is not None:
         filename = job_spec.filename or ""
         if not filename.lower().endswith(".docx"):
@@ -55,6 +57,7 @@ async def start_screening(
             temp_spec_path.unlink(missing_ok=True)
 
         parsed_requirements = build_job_requirements_from_text(spec_text)
+        recruitment_document_context = RecruitmentDocumentContext(spec_text)
 
     valid_files: list[tuple[str, bytes]] = []
     for upload in files:
@@ -72,7 +75,11 @@ async def start_screening(
             detail="No valid PDF or DOCX resumes found in the upload.",
         )
 
-    job = job_manager.create_job(total_files=len(valid_files), requirements=parsed_requirements)
+    job = job_manager.create_job(
+        total_files=len(valid_files),
+        requirements=parsed_requirements,
+        recruitment_document_context=recruitment_document_context,
+    )
     temp_dir, saved_paths = save_uploads_to_temp(valid_files)
     job.temp_dir = temp_dir
 
