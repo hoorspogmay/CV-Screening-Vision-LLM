@@ -9,7 +9,12 @@ import time
 import httpx
 
 from app.config import get_settings
-from app.decision_utils import classify_by_match_score
+from app.decision_utils import (
+    classify_by_match_score,
+    infer_experience_years,
+    parse_optional_float,
+    parse_optional_int,
+)
 from app.job_requirements import JobRequirements
 from app.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.providers_base import AIProvider
@@ -131,10 +136,15 @@ class ClaudeProvider(AIProvider):
                 reasoning=summary,
             ).value
 
-        try:
-            experience_years = int(data.get("experience_years") or 0)
-        except (TypeError, ValueError):
-            experience_years = 0
+        experience_years = parse_optional_int(data.get("experience_years"))
+        summary_text = str(data.get("experience_summary") or data.get("experience") or data.get("summary") or data.get("reason") or "")
+        inferred_years = infer_experience_years(summary_text)
+        if experience_years is None:
+            experience_years = inferred_years
+        elif experience_years == 0 and inferred_years is not None:
+            text_lower = summary_text.lower()
+            if "no relevant experience" not in text_lower and "no experience" not in text_lower:
+                experience_years = inferred_years
 
         return ResumeResult(
             file_id=file_id,

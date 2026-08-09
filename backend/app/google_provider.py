@@ -13,7 +13,12 @@ from app.schemas import Decision, ResumeResult
 from app.job_requirements import JobRequirements
 from app.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.providers_base import AIProvider
-from app.decision_utils import classify_by_match_score
+from app.decision_utils import (
+    classify_by_match_score,
+    infer_experience_years,
+    parse_optional_float,
+    parse_optional_int,
+)
 from app.token_logger import GoogleProviderAdapter, TokenUsageLogger, safe_record_usage
 
 logger = logging.getLogger(__name__)
@@ -115,10 +120,7 @@ class GoogleProvider(AIProvider):
         candidate_name = str(data.get("candidate_name") or "").strip()
         if not candidate_name or candidate_name.lower() in {"unknown", "n/a", "null"}:
             candidate_name = "Unknown"
-        try:
-            match_score = float(data.get("match_score", 0))
-        except (TypeError, ValueError):
-            match_score = 0.0
+        match_score = parse_optional_float(data.get("match_score")) or 0.0
 
         decision_value = str(data.get("decision") or "").strip().upper()
         if decision_value not in {Decision.ACCEPT.value, Decision.REJECT.value, Decision.DOUBTFUL.value}:
@@ -129,6 +131,16 @@ class GoogleProvider(AIProvider):
                 requirements,
                 reasoning=summary,
             ).value
+
+        experience_years = parse_optional_int(data.get("experience_years"))
+        summary_text = str(data.get("experience_summary") or data.get("experience") or data.get("summary") or data.get("reason") or "")
+        inferred_years = infer_experience_years(summary_text)
+        if experience_years is None:
+            experience_years = inferred_years
+        elif experience_years == 0 and inferred_years is not None:
+            text_lower = summary_text.lower()
+            if "no relevant experience" not in text_lower and "no experience" not in text_lower:
+                experience_years = inferred_years
 
         return ResumeResult(
             file_id=file_id,
@@ -141,8 +153,8 @@ class GoogleProvider(AIProvider):
             reason=data.get("reason", ""),
             match_score=match_score,
             education_level=data.get("education_level"),
-            education_relevant=data.get("education_relevant"),
-            experience_years=data.get("experience_years"),
+            education_relevant=data.get("experience_relevant"),
+            experience_years=experience_years,
             experience_relevant=data.get("experience_relevant"),
             skills_match=data.get("skills_match"),
         )

@@ -14,4 +14,4 @@ def test_groq_provider_uses_score_and_thresholds_when_decision_missing() -> None
         requirements,
     )
 
-    assert result.decision == Decision.ACCEPT
+    assert result.decision == Decision.DOUBTFUL

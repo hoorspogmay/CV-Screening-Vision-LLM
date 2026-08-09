@@ -90,6 +90,7 @@ def test_results_to_csv_omits_metric_columns() -> None:
     assert rows[0] == [
         "Candidate Name",
         "File Name",
+        "Job Role",
         "Decision",
         "Summary",
         "Match Score",
@@ -98,7 +99,7 @@ def test_results_to_csv_omits_metric_columns() -> None:
         "Skills Match",
     ]
     assert rows[1][0] == "Jane Doe"
-    assert len(rows[1]) == 8
+    assert len(rows[1]) == 9
 
 
 def test_csv_logger_writes_to_primary_and_legacy_paths(tmp_path: Path) -> None:

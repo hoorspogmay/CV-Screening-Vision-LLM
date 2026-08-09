@@ -10,10 +10,16 @@ import httpx
 
 from app.config import get_settings
 from app.schemas import Decision, ResumeResult
+from app.job_extraction_prompt import EXTRACTION_PROMPT
+from app.job_extraction_types import JobExtraction, parse_job_extraction_response
 from app.job_requirements import JobRequirements
 from app.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.providers_base import AIProvider
-from app.decision_utils import classify_by_match_score
+from app.decision_utils import (
+    classify_by_match_score,
+    infer_experience_years,
+    parse_optional_int,
+)
 from app.token_logger import OpenRouterProviderAdapter, TokenUsageLogger, safe_record_usage
 
 logger = logging.getLogger(__name__)
@@ -172,10 +178,15 @@ class OpenRouterProvider(AIProvider):
                 reasoning=summary,
             ).value
 
-        try:
-            experience_years = int(data.get("experience_years") or 0)
-        except (TypeError, ValueError):
-            experience_years = 0
+        experience_years = parse_optional_int(data.get("experience_years"))
+        summary_text = str(data.get("experience_summary") or data.get("experience") or data.get("summary") or data.get("reason") or "")
+        inferred_years = infer_experience_years(summary_text)
+        if experience_years is None:
+            experience_years = inferred_years
+        elif experience_years == 0 and inferred_years is not None:
+            text_lower = summary_text.lower()
+            if "no relevant experience" not in text_lower and "no experience" not in text_lower:
+                experience_years = inferred_years
 
         return ResumeResult(
             file_id=file_id,
@@ -188,3 +199,57 @@ class OpenRouterProvider(AIProvider):
             experience_years=experience_years,
             skills_match=bool(data.get("skills_match", True)),
         )
+
+    async def extract_jobs(self, document_text: str) -> list[JobExtraction]:
+        prompt_text = f"{EXTRACTION_PROMPT}\n\nDocument text:\n{document_text}"
+        payload = {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": EXTRACTION_PROMPT},
+                {"role": "user", "content": prompt_text},
+            ],
+            "temperature": 0.0,
+            "max_tokens": 1200,
+        }
+
+        last_error: Exception | None = None
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            for attempt in range(1, self._max_retries + 1):
+                for api_key in list(self._api_keys):
+                    if self._failed_keys.get(api_key, 0) >= 2:
+                        logger.warning(
+                            "Skipping exhausted OpenRouter key %s during extraction...",
+                            api_key[:8],
+                        )
+                        continue
+
+                    headers = {
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "http://localhost:5173",
+                        "X-Title": "ATS Screening Job Extraction",
+                    }
+                    try:
+                        response = await client.post(self._url, headers=headers, json=payload)
+                        response.raise_for_status()
+                        body = response.json()
+                        content = body["choices"][0]["message"]["content"]
+                        jobs = parse_job_extraction_response(content)
+                        self._failed_keys.pop(api_key, None)
+                        return jobs
+                    except (httpx.HTTPError, KeyError, json.JSONDecodeError, ValueError) as exc:
+                        last_error = exc
+                        self._failed_keys[api_key] = self._failed_keys.get(api_key, 0) + 1
+                        logger.warning(
+                            "OpenRouter job extraction call failed for key %s (attempt %d/%d): %s",
+                            api_key[:8] + "...",
+                            attempt,
+                            self._max_retries,
+                            exc,
+                        )
+                        if attempt < self._max_retries:
+                            await asyncio.sleep(self._rate_limit_pause)
+                if attempt < self._max_retries:
+                    await asyncio.sleep(self._backoff * attempt)
+
+        raise RuntimeError(f"OpenRouter job extraction failed after {self._max_retries} attempts: {last_error}")

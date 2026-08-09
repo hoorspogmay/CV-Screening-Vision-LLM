@@ -31,7 +31,7 @@ from app.ai_provider import get_ai_provider, get_fallback_provider
 from app.job_requirements import JobOpeningProfile, JobRequirements
 from app.job_rules import apply_business_rules
 from app.file_utils import extract_text
-from app.decision_utils import classify_by_match_score
+from app.decision_utils import classify_by_match_score, score_from_reasoning
 
 
 class RecruitmentDocumentContext:
@@ -175,6 +175,7 @@ def _expand_routing_terms(text: str) -> set[str]:
         "web": {"web", "javascript", "js", "typescript", "ts", "react", "node", "vue", "angular", "frontend", "backend"},
         "mobile": {"mobile", "android", "ios", "swift", "kotlin"},
         "security": {"security", "cyber", "infosec", "soc", "pentest", "iam"},
+        "healthcare": {"nurse", "nursing", "rn", "bsn", "lpn", "patient", "patient-care", "clinical", "icu", "acls", "bls", "hospital", "clinic", "vital", "patientcare"},
     }
     for term in list(terms):
         for root, group in synonym_groups.items():
@@ -197,20 +198,49 @@ def _semantic_profile_score(resume_text: str, profile: JobOpeningProfile) -> flo
     if not resume_terms or not profile_terms:
         return 0.0
 
-    overlap = len(resume_terms & profile_terms)
-    union = len(resume_terms | profile_terms)
-    base_score = round(overlap / max(3, union), 3)
-
     resume_tokens = set(_normalize_routing_text(resume_text).split())
-    profile_tokens = set(_normalize_routing_text(profile_text).split())
-    title_overlap = len(resume_tokens & profile_tokens)
-    skill_overlap = len(
-        set(token for token in resume_tokens if token in {"python", "sql", "java", "javascript", "typescript", "react", "node", "fastapi", "django", "postgres", "postgresql", "aws", "azure", "docker", "kubernetes", "tableau", "excel", "powerbi", "powerbi", "graphql", "numpy", "pandas"})
-        & set(token for token in profile_tokens if token in {"python", "sql", "java", "javascript", "typescript", "react", "node", "fastapi", "django", "postgres", "postgresql", "aws", "azure", "docker", "kubernetes", "tableau", "excel", "powerbi", "graphql", "numpy", "pandas"})
+
+    # Title overlap: capture previous job titles and role labels as the strongest relevance signal.
+    title_tokens = set(_normalize_routing_text(" ".join([profile.title or "", profile.requirements.job_role or ""])) .split())
+    title_overlap = len(resume_tokens & title_tokens)
+    title_score = min(1.0, title_overlap / max(1, len(title_tokens))) if title_tokens else 0.0
+
+    # Domain overlap: shared professional vocabulary between resume and job profile.
+    domain_overlap = len(resume_terms & profile_terms) / max(1, len(profile_terms))
+
+    # Education relevance: related discipline or degree level matters more than exact wording.
+    education_tokens = set(_normalize_routing_text(profile.requirements.required_education or "").split())
+    related_education_tokens = {
+        "medical", "biomedical", "laboratory", "diagnostic", "healthcare", "nursing", "science",
+        "business", "administration", "management", "accounting", "finance", "hospitality",
+    }
+    education_present = bool(resume_tokens & (education_tokens | related_education_tokens))
+    education_score = 1.0 if education_present and domain_overlap > 0 else 0.0
+
+    # Experience/responsibility indicators reflect professional trajectory and true relevance.
+    experience_indicators = {
+        "experience", "experienced", "worked", "responsible", "duties", "responsibilities", "years",
+        "managed", "supervised", "coordinated", "led", "operations", "administrative", "customer", "clinical", "laboratory", "diagnostic", "testing", "support",
+    }
+    experience_score = 1.0 if bool(resume_tokens & experience_indicators) and domain_overlap > 0 else 0.0
+
+    # Skill overlap is a contributing signal but not the sole relevance determinant.
+    required_skills = set(_normalize_routing_text(" ".join(profile.requirements.required_skills)).split()) if profile.requirements.required_skills else set()
+    skill_score = len(resume_tokens & required_skills) / max(1, len(required_skills)) if required_skills else 0.0
+
+    weighted = (
+        0.35 * title_score +
+        0.25 * domain_overlap +
+        0.20 * experience_score +
+        0.10 * education_score +
+        0.10 * skill_score
     )
 
-    weighted_score = base_score + (0.18 * min(2, title_overlap)) + (0.12 * min(3, skill_overlap))
-    return round(min(1.0, weighted_score), 3)
+    # Prevent single keyword hits from deciding relevance alone.
+    if title_score < 0.1 and domain_overlap < 0.15 and education_score < 0.1 and experience_score < 0.1:
+        return 0.0
+
+    return round(min(1.0, weighted), 3)
 
 
 def _route_resume_to_job_profiles(resume_text: str, profiles: list[JobOpeningProfile]) -> tuple[list[JobOpeningProfile], bool]:
@@ -224,6 +254,7 @@ def _route_resume_to_job_profiles(resume_text: str, profiles: list[JobOpeningPro
     if best_score < 0.18:
         return [], True
 
+    # Preserve cases where the resume is clearly relevant to a non-nursing profile.
     if len(scored_profiles) == 1:
         return [best_profile], False
 
@@ -357,6 +388,30 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
     )
 
 
+def _validate_match_score_from_reasoning(match_score: float | None, reasoning: str | None) -> float | None:
+    # If the model provided an explicit numeric match_score, trust it as authoritative
+    # (do not modify it based on the narrative). Only derive a score from reasoning
+    # when match_score is missing.
+    if match_score is not None:
+        try:
+            return float(match_score)
+        except (TypeError, ValueError):
+            return None
+
+    # No numeric score supplied — try to extract an explicit numeric mention from the reasoning
+    text = (reasoning or "")
+    if text:
+        m = re.search(r"(?:match\s*score|score)\s*(?:is|=|:)\s*(\d{1,3})", text, flags=re.IGNORECASE)
+        if m:
+            try:
+                return float(int(m.group(1)))
+            except (TypeError, ValueError):
+                pass
+        # Fall back to heuristic scoring from the narrative
+        return score_from_reasoning(text)
+    return None
+
+
 def _finalize_result(result: ResumeResult, requirements: JobRequirements | None) -> ResumeResult:
     """Classify the result.
 
@@ -364,14 +419,39 @@ def _finalize_result(result: ResumeResult, requirements: JobRequirements | None)
     1. If business rules say hard REJECT (policy violation), always reject.
     2. Otherwise, classify by match_score: >=80 ACCEPT, >=50 DOUBTFUL, <50 REJECT.
     """
-    # Step 1 — check for a hard policy REJECT from business rules
+    # Reconcile extracted structured fields against the natural-language summary
+    from app.decision_utils import reconcile_extracted_fields
+
+    normalized_exp, normalized_skills_match, normalized_edu = reconcile_extracted_fields(
+        result.summary, result.experience_years, result.skills_match, result.education_level
+    )
+
+    # If requirements are provided, build AI payload and allow deterministic policy gates.
     if requirements is not None:
+        edu = (normalized_edu or result.education_level or "").strip()
+        edu_norm = edu.lower() if edu else "none"
+        if not edu:
+            education_relevant = None
+        elif edu_norm in {"unknown", "n/a", "null"}:
+            education_relevant = None
+        elif edu_norm == "none":
+            education_relevant = False
+        else:
+            education_relevant = True
+
+        exp_years = normalized_exp if normalized_exp is not None else (result.experience_years if result.experience_years is not None else None)
+        experience_relevant = None if exp_years is None else exp_years > 0
+
+        # Preserve explicit model signal for skills_match unless reconciled to True/False
+        skills_match_value = normalized_skills_match if normalized_skills_match is not None else result.skills_match
+
         ai_payload = {
-            "education_level": str(result.education_level or "none").strip().lower(),
-            "education_relevant": True,
-            "experience_years": result.experience_years,
-            "experience_relevant": True,
-            "skills_match": bool(result.skills_match if result.skills_match is not None else True),
+            "education_level": edu_norm,
+            "education_relevant": education_relevant,
+            "experience_years": exp_years,
+            "experience_relevant": experience_relevant,
+            # Preserve explicit model signal for skills_match (can be True/False/None), reconciled above.
+            "skills_match": skills_match_value,
             "reason": result.summary,
             "skills_summary": result.summary,
         }
@@ -382,16 +462,55 @@ def _finalize_result(result: ResumeResult, requirements: JobRequirements | None)
                 return result.model_copy(update={"decision": Decision.REJECT})
             return result
 
-    # Step 2 — score drives the final decision
+    # Step 2 — the final authoritative score is the model-provided `match_score` when present.
+    # We will not mutate the original numeric score. If it's missing, derive it from reasoning.
+    # Also sanitize the reasoning so it does not contain an explicit numeric score that
+    # contradicts the authoritative `match_score`.
+    def _sanitize_reasoning_for_score(text: str | None, authoritative_score: float | None) -> str | None:
+        if not text:
+            return text
+        s = text
+        # Remove explicit 'match score is X' or 'score: X' mentions to avoid contradictions.
+        s = re.sub(r"(?:match\s*score|score)\s*(?:is|=|:)\s*\d{1,3}", "", s, flags=re.IGNORECASE)
+        # Collapse multiple spaces and stray punctuation from removals.
+        s = re.sub(r"\s{2,}", " ", s).strip()
+        return s
+
+    authoritative = _validate_match_score_from_reasoning(result.match_score, result.summary)
+    sanitized_summary = _sanitize_reasoning_for_score(result.summary, authoritative)
+
     final_decision = classify_by_match_score(
-        result.match_score,
+        authoritative,
         result.decision,
         requirements,
-        reasoning=result.summary,
+        reasoning=sanitized_summary,
     )
-    if final_decision == result.decision:
+
+    updates: dict[str, object] = {}
+    # Do NOT change match_score here — keep the model's numeric signal as the final authority.
+    if final_decision != result.decision:
+        updates["decision"] = final_decision
+    if sanitized_summary is not None and sanitized_summary != result.summary:
+        updates["summary"] = sanitized_summary
+
+    # Include reconciled structured fields so outputs don't contradict the summary.
+    # Experience: if reconciled to None but original was 0, set to None.
+    if normalized_exp is not None and normalized_exp != result.experience_years:
+        updates["experience_years"] = normalized_exp
+    elif normalized_exp is None and result.experience_years == 0:
+        updates["experience_years"] = None
+
+    # Skills match: update if reconciliation produced a definitive value different from original.
+    if normalized_skills_match is not None and normalized_skills_match != result.skills_match:
+        updates["skills_match"] = normalized_skills_match
+
+    # Education level: prefer reconciled detected education when it provides a value.
+    if normalized_edu and (normalized_edu != result.education_level):
+        updates["education_level"] = normalized_edu
+
+    if not updates:
         return result
-    return result.model_copy(update={"decision": final_decision})
+    return result.model_copy(update=updates)
 
 
 async def run_screening_job(job: JobState, file_paths: list[tuple[Path, str]]) -> None:

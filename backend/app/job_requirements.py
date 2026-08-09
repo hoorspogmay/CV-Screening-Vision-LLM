@@ -1,10 +1,14 @@
 """Pydantic models for recruiter-defined hiring requirements."""
 from __future__ import annotations
 
+import logging
 import re
 from typing import Optional
 
+from app.job_extraction_types import JobExtraction
 from pydantic import BaseModel, Field, field_validator
+
+logger = logging.getLogger(__name__)
 
 
 class JobRequirements(BaseModel):
@@ -123,35 +127,93 @@ def _looks_like_job_header(line: str) -> bool:
     stripped = line.strip()
     if not stripped:
         return False
-    return bool(re.match(r"^\s*(?:job\s+opening|opening|position|job\s+role|job\s+title|role)\s*(?:#?\d+)?\s*[:\-]", stripped, flags=re.IGNORECASE))
+    return bool(re.match(
+        r"^\s*(?:job\s+opening|opening|vacancy|position|job\s+role|job\s+title|role)\s*(?:#?\d+)?\s*(?:[:\-]|$)",
+        stripped,
+        flags=re.IGNORECASE,
+    ))
+
+
+def _is_generic_header(title: str) -> bool:
+    generic_markers = {
+        "department",
+        "division",
+        "team",
+        "group",
+        "business",
+        "organization",
+        "office",
+        "location",
+        "company",
+        "program",
+    }
+    normalized = title.strip().lower()
+    return any(marker in normalized for marker in generic_markers)
 
 
 def _split_job_opening_sections(spec_text: str) -> list[tuple[str, str]]:
     lines = [line.rstrip() for line in (spec_text or "").splitlines()]
     sections: list[tuple[str, str]] = []
+    section_bounds: list[tuple[int, int, str]] = []
     current_title = ""
     current_lines: list[str] = []
+    current_start = 0
+    found_job_header = False
+    preamble_lines: list[str] = []
+    ambiguous_headers: list[str] = []
 
-    def flush() -> None:
+    def flush(end_line: int) -> None:
         if current_lines:
             section_text = "\n".join(current_lines).strip()
             if section_text:
                 sections.append((current_title.strip(), section_text))
+                section_bounds.append((current_start, end_line, current_title.strip() or "<generic>"))
 
-    for raw_line in lines:
+    for line_index, raw_line in enumerate(lines):
         line = raw_line.strip()
         if _looks_like_job_header(line):
-            flush()
-            current_title = re.sub(r"^\s*(?:job\s+opening|opening|position|job\s+role|job\s+title|role)\s*(?:#?\d+)?\s*[:\-]\s*", "", line, flags=re.IGNORECASE).strip()
-            current_lines = [raw_line]
-        elif current_title:
-            current_lines.append(raw_line)
-        elif line:
-            current_lines.append(raw_line)
+            extracted_title = re.sub(
+                r"^\s*(?:job\s+opening|opening|vacancy|position|job\s+role|job\s+title|role)\s*(?:#?\d+)?\s*(?:[:\-])\s*",
+                "",
+                line,
+                flags=re.IGNORECASE,
+            ).strip()
+            if _is_generic_header(extracted_title) or not extracted_title:
+                ambiguous_headers.append(line)
+                if found_job_header:
+                    current_lines.append(raw_line)
+                else:
+                    preamble_lines.append(raw_line)
+                continue
 
-    flush()
+            if found_job_header:
+                flush(line_index - 1)
+            current_title = extracted_title
+            current_lines = preamble_lines + [raw_line] if preamble_lines else [raw_line]
+            preamble_lines = []
+            current_start = line_index
+            found_job_header = True
+        elif found_job_header:
+            current_lines.append(raw_line)
+        else:
+            preamble_lines.append(raw_line)
+
+    flush(len(lines) - 1)
     if not sections:
+        if ambiguous_headers:
+            logger.debug(
+                "Job extraction found no explicit job headers but saw generic sections: %s",
+                ambiguous_headers,
+            )
         return [("", (spec_text or "").strip())]
+
+    logger.debug(
+        "Detected %d job sections: titles=%s; boundaries=%s; ambiguous_headers=%s",
+        len(sections),
+        [title for title, _ in sections],
+        [f"{start}-{end}:{title}" for start, end, title in section_bounds],
+        ambiguous_headers,
+    )
     return sections
 
 
@@ -191,5 +253,26 @@ def build_job_profiles_from_text(spec_text: str) -> list[JobOpeningProfile]:
                 description=text,
             )
         )
+
+    return profiles
+
+
+def build_job_profiles_from_extraction(jobs: list[JobExtraction]) -> list[JobOpeningProfile]:
+    profiles: list[JobOpeningProfile] = []
+    seen_titles: set[str] = set()
+
+    for job in jobs:
+        final_title = job.job_title.strip() or "General Professional Role"
+        normalized_title = final_title.lower()
+        if not final_title or normalized_title in seen_titles:
+            continue
+        seen_titles.add(normalized_title)
+
+        profile = JobOpeningProfile(
+            title=final_title,
+            requirements=_parse_requirements_from_text(job.job_text, final_title),
+            description=job.job_text,
+        )
+        profiles.append(profile)
 
     return profiles

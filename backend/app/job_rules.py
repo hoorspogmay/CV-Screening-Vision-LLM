@@ -1,6 +1,7 @@
 """Deterministic hiring-policy rules for generic recruitment screening."""
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.schemas import Decision
@@ -16,15 +17,20 @@ def apply_business_rules(requirements: JobRequirements, ai_payload: dict[str, An
 
 def _determine_decision(requirements: JobRequirements, ai_payload: dict[str, Any]) -> Decision:
     education_level = str(ai_payload.get("education_level") or "").strip().lower()
-    education_relevant = bool(ai_payload.get("education_relevant", True))
+    education_relevant = ai_payload.get("education_relevant")
     experience_years = ai_payload.get("experience_years")
-    experience_relevant = bool(ai_payload.get("experience_relevant", True))
+    experience_relevant = ai_payload.get("experience_relevant")
     skills_match = bool(ai_payload.get("skills_match", True))
 
-    if not education_relevant or not experience_relevant:
+    # Only apply hard rule rejects when a recruiter has supplied the relevant requirement.
+    if education_relevant is False and requirements.required_education:
+        return Decision.REJECT
+    if experience_relevant is False and (requirements.min_experience is not None or requirements.max_experience is not None):
         return Decision.REJECT
 
-    if not skills_match:
+    # Respect an explicit signal from the AI about skills matching when present.
+    skills_match_signal = ai_payload.get("skills_match", None)
+    if skills_match_signal is False and requirements.required_skills:
         summary = str(ai_payload.get("skills_summary") or "").lower()
         reason = str(ai_payload.get("reason") or "").lower()
         if "minor" in summary or "minor" in reason or "one" in summary or "one" in reason:
@@ -67,18 +73,29 @@ def _determine_decision(requirements: JobRequirements, ai_payload: dict[str, Any
                 return Decision.REJECT
 
     if requirements.min_experience is not None or requirements.max_experience is not None:
-        try:
-            years = int(experience_years or 0)
-        except (TypeError, ValueError):
-            years = 0
+        if experience_relevant is True:
+            try:
+                years = int(experience_years or 0)
+            except (TypeError, ValueError):
+                years = 0
 
-        if requirements.min_experience is not None and years < requirements.min_experience:
-            return Decision.REJECT
-        if requirements.max_experience is not None and years > requirements.max_experience:
-            return Decision.REJECT
+            if requirements.min_experience is not None and years < requirements.min_experience:
+                return Decision.REJECT
+            if requirements.max_experience is not None and years > requirements.max_experience:
+                return Decision.REJECT
 
-    if requirements.required_skills and not _has_required_skills(ai_payload.get("skills_summary", ""), requirements.required_skills):
-        return Decision.REJECT
+    # If the AI did not explicitly state skills_match, use the model's own narrative
+    # rather than applying a hard deterministic reject for any missing required skill.
+    if requirements.required_skills:
+        if skills_match_signal is False:
+            return Decision.REJECT
+        if skills_match_signal is True:
+            pass
+        else:
+            skills_summary = str(ai_payload.get("skills_summary") or "")
+            if not _has_required_skills(skills_summary, requirements.required_skills):
+                if _summary_indicates_hard_skill_mismatch(skills_summary):
+                    return Decision.REJECT
 
     return Decision.ACCEPT
 
@@ -89,10 +106,30 @@ def _has_required_skills(skills_summary: str, required_skills: list[str]) -> boo
         token = skill.lower().strip()
         if not token:
             continue
-        if token in summary:
+        # Match whole tokens to avoid accidental substring matches (e.g. "go" in "ngo").
+        pattern = r"\b" + re.escape(token) + r"\b"
+        if re.search(pattern, summary):
             continue
         return False
     return True
+
+
+def _summary_indicates_hard_skill_mismatch(skills_summary: str) -> bool:
+    text = (skills_summary or "").lower()
+    negative_markers = [
+        "missing",
+        "lacks",
+        "does not have",
+        "doesn't have",
+        "no relevant",
+        "insufficient",
+        "weak on",
+        "poor on",
+        "without",
+        "not proficient",
+        "not experienced",
+    ]
+    return any(marker in text for marker in negative_markers)
 
 
 def _build_reason(requirements: JobRequirements, ai_payload: dict[str, Any], decision: Decision) -> str:

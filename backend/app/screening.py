@@ -12,7 +12,14 @@ from pathlib import Path
 
 from app.config import get_settings
 from app.schemas import StartScreeningResponse, WSEvent, WSEventType
-from app.job_requirements import JobOpeningProfile, JobRequirements, build_job_profiles_from_text, build_job_requirements_from_text
+from app.job_extraction import extract_jobs_from_recruitment_document
+from app.job_requirements import (
+    JobOpeningProfile,
+    JobRequirements,
+    build_job_profiles_from_extraction,
+    build_job_profiles_from_text,
+    build_job_requirements_from_text,
+)
 from app.file_utils import extract_text
 from app.resume_service import (
     RecruitmentDocumentContext,
@@ -58,10 +65,20 @@ async def start_screening(
             temp_spec_path.unlink(missing_ok=True)
 
         parsed_requirements = build_job_requirements_from_text(spec_text)
-        job_profiles = build_job_profiles_from_text(spec_text)
-        if not job_profiles and parsed_requirements is not None:
-            job_profiles = [JobOpeningProfile(title=parsed_requirements.job_role or "General Professional Role", requirements=parsed_requirements)]
         recruitment_document_context = RecruitmentDocumentContext(spec_text)
+
+        try:
+            extracted_jobs = await extract_jobs_from_recruitment_document(spec_text)
+        except Exception as exc:
+            logger.warning("Job extraction failed, falling back to rule-based parsing: %s", exc)
+            extracted_jobs = []
+
+        if extracted_jobs:
+            job_profiles = build_job_profiles_from_extraction(extracted_jobs)
+        else:
+            job_profiles = build_job_profiles_from_text(spec_text)
+            if not job_profiles and parsed_requirements is not None:
+                job_profiles = [JobOpeningProfile(title=parsed_requirements.job_role or "General Professional Role", requirements=parsed_requirements)]
 
     valid_files: list[tuple[str, bytes]] = []
     for upload in files:

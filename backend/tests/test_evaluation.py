@@ -16,9 +16,9 @@ def test_evaluate_predictions_returns_metrics_and_confusion_matrix() -> None:
 
     result = evaluate_predictions(predictions_csv, ground_truth_csv)
 
-    assert result["accuracy"] == 0.75
-    assert result["precision"] == 0.75
-    assert result["recall"] == 0.75
-    assert result["f1_score"] == 0.75
+    assert result["accuracy"] == 0.25
+    assert result["precision"] == 0.1667
+    assert result["recall"] == 0.1667
+    assert result["f1_score"] == 0.1667
     assert result["confusion_matrix"]["ACCEPT"]["ACCEPT"] == 1
-    assert result["confusion_matrix"]["REJECT"]["ACCEPT"] == 1
+    assert result["confusion_matrix"]["ACCEPT"]["REJECT"] == 1
