@@ -28,6 +28,7 @@ class ResumeResult(BaseModel):
     summary: str
     error: Optional[str] = None
     match_score: Optional[float] = Field(default=None, ge=0, le=100)
+    routed_job_titles: list[str] = Field(default_factory=list)
     # Structured fields used by job_rules.py for deterministic policy checks
     education_level: Optional[str] = None
     experience_years: Optional[int] = None

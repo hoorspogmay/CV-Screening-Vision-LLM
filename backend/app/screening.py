@@ -12,7 +12,7 @@ from pathlib import Path
 
 from app.config import get_settings
 from app.schemas import StartScreeningResponse, WSEvent, WSEventType
-from app.job_requirements import JobRequirements, build_job_requirements_from_text
+from app.job_requirements import JobOpeningProfile, JobRequirements, build_job_profiles_from_text, build_job_requirements_from_text
 from app.file_utils import extract_text
 from app.resume_service import (
     RecruitmentDocumentContext,
@@ -37,6 +37,7 @@ async def start_screening(
         raise HTTPException(status_code=400, detail="No files were uploaded.")
 
     parsed_requirements: JobRequirements | None = None
+    job_profiles: list[JobOpeningProfile] = []
     recruitment_document_context: RecruitmentDocumentContext | None = None
     if job_spec is not None:
         filename = job_spec.filename or ""
@@ -57,6 +58,9 @@ async def start_screening(
             temp_spec_path.unlink(missing_ok=True)
 
         parsed_requirements = build_job_requirements_from_text(spec_text)
+        job_profiles = build_job_profiles_from_text(spec_text)
+        if not job_profiles and parsed_requirements is not None:
+            job_profiles = [JobOpeningProfile(title=parsed_requirements.job_role or "General Professional Role", requirements=parsed_requirements)]
         recruitment_document_context = RecruitmentDocumentContext(spec_text)
 
     valid_files: list[tuple[str, bytes]] = []
@@ -79,6 +83,7 @@ async def start_screening(
         total_files=len(valid_files),
         requirements=parsed_requirements,
         recruitment_document_context=recruitment_document_context,
+        job_profiles=job_profiles if job_spec is not None else None,
     )
     temp_dir, saved_paths = save_uploads_to_temp(valid_files)
     job.temp_dir = temp_dir

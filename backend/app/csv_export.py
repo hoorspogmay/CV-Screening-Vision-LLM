@@ -7,6 +7,7 @@ from app.schemas import ResumeResult
 CSV_COLUMNS = [
     "Candidate Name",
     "File Name",
+    "Job Role",
     "Decision",
     "Summary",
     "Match Score",
@@ -27,6 +28,7 @@ def results_to_csv(results: list[ResumeResult]) -> str:
         writer.writerow([
             result.candidate_name,
             result.file_name,
+            "; ".join(result.routed_job_titles) if result.routed_job_titles else "",
             result.decision.value,
             result.summary,
             result.match_score,

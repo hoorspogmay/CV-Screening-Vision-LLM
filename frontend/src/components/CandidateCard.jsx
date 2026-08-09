@@ -2,6 +2,12 @@ export default function CandidateCard({ result }) {
   const hasError = Boolean(result.error);
   const decision = hasError ? "ERROR" : result.decision;
   const score = typeof result.match_score === "number" ? result.match_score : null;
+  const routedJobs = Array.isArray(result.routed_job_titles) ? result.routed_job_titles.filter(Boolean) : [];
+  const routingLabel = routedJobs.length > 0
+    ? `Routed to: ${routedJobs.join(" • ")}`
+    : decision === "REJECT"
+      ? "No clear job match detected"
+      : null;
 
   const cardClass = decision === "ACCEPT"
     ? "candidate-card--accept"
@@ -40,6 +46,8 @@ export default function CandidateCard({ result }) {
       {!hasError && score !== null ? (
         <p className="candidate-card__score">Match Score: {Math.round(score)}/100</p>
       ) : null}
+
+      {routingLabel ? <p className="candidate-card__routing">{routingLabel}</p> : null}
 
       {hasError ? (
         <p className="candidate-card__error">Could not process this resume: {result.error}</p>

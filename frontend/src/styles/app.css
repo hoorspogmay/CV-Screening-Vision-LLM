@@ -402,10 +402,33 @@
 /* ==========================================================================
    Results grid & panels
    ========================================================================== */
+.results-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .results-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
+}
+
+.results-grid--job {
+  margin-top: 12px;
+}
+
+.job-results-group {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  background: var(--color-surface);
+}
+
+.job-results-group__title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
 }
 
 @media (max-width: 980px) {
@@ -553,6 +576,12 @@
   margin: 0 0 10px;
   font-size: 12.5px;
   font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.candidate-card__routing {
+  margin: 0 0 10px;
+  font-size: 12px;
   color: var(--color-text-secondary);
 }
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import shutil
 import tempfile
 import uuid
@@ -27,7 +28,7 @@ from app.schemas import (
     WSEventType,
 )
 from app.ai_provider import get_ai_provider, get_fallback_provider
-from app.job_requirements import JobRequirements
+from app.job_requirements import JobOpeningProfile, JobRequirements
 from app.job_rules import apply_business_rules
 from app.file_utils import extract_text
 from app.decision_utils import classify_by_match_score
@@ -51,6 +52,7 @@ class JobState:
     subscribers: list[asyncio.Queue] = field(default_factory=list)
     temp_dir: Path | None = None
     requirements: JobRequirements | None = None
+    job_profiles: list[JobOpeningProfile] = field(default_factory=list)
     recruitment_document_context: RecruitmentDocumentContext | None = None
 
     @property
@@ -97,12 +99,14 @@ class JobManager:
         total_files: int,
         requirements: JobRequirements | None = None,
         recruitment_document_context: RecruitmentDocumentContext | None = None,
+        job_profiles: list[JobOpeningProfile] | None = None,
     ) -> JobState:
         job_id = str(uuid.uuid4())
         job = JobState(
             job_id=job_id,
             total=total_files,
             requirements=requirements,
+            job_profiles=job_profiles or [],
             recruitment_document_context=recruitment_document_context,
         )
         self._jobs[job_id] = job
@@ -145,20 +149,139 @@ def _error_result(file_id: str, file_name: str, error: str) -> ResumeResult:
     )
 
 
-async def process_single_resume(job: JobState, file_path: Path, file_name: str) -> ResumeResult:
-    """Extract text, evaluate with the AI provider, and return a result (never raises)."""
-    file_id = str(uuid.uuid4())
+def _normalize_routing_text(text: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
+    return " ".join(word for word in cleaned.split() if word not in {"the", "and", "for", "with", "from", "of", "to", "in", "on", "a", "an", "is", "are"})
+
+
+def _expand_routing_terms(text: str) -> set[str]:
+    normalized = _normalize_routing_text(text)
+    if not normalized:
+        return set()
+
+    terms = set(normalized.split())
+    expanded = set(terms)
+    synonym_groups = {
+        "engineer": {"engineer", "engineering", "developer", "software", "programmer", "swe", "backend", "frontend", "fullstack", "full-stack", "devops"},
+        "analyst": {"analyst", "analytics", "analysis", "reporting", "dashboard", "bi", "insights", "metrics"},
+        "manager": {"manager", "lead", "leadership", "coordinator", "director", "product", "owner"},
+        "designer": {"designer", "ui", "ux", "visual", "experience", "interaction"},
+        "data": {"data", "database", "warehouse", "etl", "science", "analytics", "sql", "postgres", "postgresql", "mysql", "db"},
+        "sales": {"sales", "business", "account", "client", "revenue", "growth", "commercial"},
+        "support": {"support", "service", "helpdesk", "customer", "operations"},
+        "education": {"bsc", "bs", "ba", "bachelor", "bachelors", "bachelor's", "master", "masters", "msc", "ms", "phd", "doctorate", "graduate", "undergraduate"},
+        "cloud": {"cloud", "aws", "azure", "gcp", "docker", "kubernetes", "terraform", "devops"},
+        "ai": {"ai", "ml", "machine", "learning", "deep", "llm", "nlp", "vision"},
+        "web": {"web", "javascript", "js", "typescript", "ts", "react", "node", "vue", "angular", "frontend", "backend"},
+        "mobile": {"mobile", "android", "ios", "swift", "kotlin"},
+        "security": {"security", "cyber", "infosec", "soc", "pentest", "iam"},
+    }
+    for term in list(terms):
+        for root, group in synonym_groups.items():
+            if term in group or root == term:
+                expanded.update(group)
+    return expanded
+
+
+def _semantic_profile_score(resume_text: str, profile: JobOpeningProfile) -> float:
+    profile_text = " ".join(
+        part for part in [
+            profile.title,
+            profile.requirements.job_role,
+            profile.requirements.required_education,
+            " ".join(profile.requirements.required_skills),
+        ] if part
+    )
+    resume_terms = _expand_routing_terms(resume_text)
+    profile_terms = _expand_routing_terms(profile_text)
+    if not resume_terms or not profile_terms:
+        return 0.0
+
+    overlap = len(resume_terms & profile_terms)
+    union = len(resume_terms | profile_terms)
+    base_score = round(overlap / max(3, union), 3)
+
+    resume_tokens = set(_normalize_routing_text(resume_text).split())
+    profile_tokens = set(_normalize_routing_text(profile_text).split())
+    title_overlap = len(resume_tokens & profile_tokens)
+    skill_overlap = len(
+        set(token for token in resume_tokens if token in {"python", "sql", "java", "javascript", "typescript", "react", "node", "fastapi", "django", "postgres", "postgresql", "aws", "azure", "docker", "kubernetes", "tableau", "excel", "powerbi", "powerbi", "graphql", "numpy", "pandas"})
+        & set(token for token in profile_tokens if token in {"python", "sql", "java", "javascript", "typescript", "react", "node", "fastapi", "django", "postgres", "postgresql", "aws", "azure", "docker", "kubernetes", "tableau", "excel", "powerbi", "graphql", "numpy", "pandas"})
+    )
+
+    weighted_score = base_score + (0.18 * min(2, title_overlap)) + (0.12 * min(3, skill_overlap))
+    return round(min(1.0, weighted_score), 3)
+
+
+def _route_resume_to_job_profiles(resume_text: str, profiles: list[JobOpeningProfile]) -> tuple[list[JobOpeningProfile], bool]:
+    if not profiles:
+        return [], False
+
+    scored_profiles = [(profile, _semantic_profile_score(resume_text, profile)) for profile in profiles]
+    scored_profiles.sort(key=lambda item: item[1], reverse=True)
+
+    best_profile, best_score = scored_profiles[0]
+    if best_score < 0.18:
+        return [], True
+
+    if len(scored_profiles) == 1:
+        return [best_profile], False
+
+    second_profile, second_score = scored_profiles[1]
+    if second_score >= max(0.3, best_score * 0.6):
+        return [best_profile, second_profile], False
+    return [best_profile], False
+
+
+def _routing_reject_result(file_id: str, file_name: str, candidate_name: str = "Unknown") -> ResumeResult:
+    return ResumeResult(
+        file_id=file_id,
+        file_name=file_name,
+        candidate_name=candidate_name,
+        decision=Decision.REJECT,
+        summary="The resume did not show a clear match to any detected job opening.",
+        match_score=0,
+        routed_job_titles=[],
+    )
+
+
+def _select_best_result(results: list[tuple[JobRequirements | None, ResumeResult]]) -> tuple[JobRequirements | None, ResumeResult]:
+    def rank(item: tuple[JobRequirements | None, ResumeResult]) -> tuple[float, int]:
+        requirements, result = item
+        score = result.match_score if result.match_score is not None else 0.0
+        decision_weight = {
+            Decision.ACCEPT: 3,
+            Decision.DOUBTFUL: 2,
+            Decision.REJECT: 1,
+        }.get(result.decision, 0)
+        return (score, decision_weight)
+
+    return max(results, key=rank)
+
+
+def _attach_routing_context(result: ResumeResult, routed_job_titles: list[str] | None) -> ResumeResult:
+    titles = [title for title in (routed_job_titles or []) if title]
+    return result.model_copy(update={"routed_job_titles": titles})
+
+
+async def _evaluate_resume_for_requirements(
+    job: JobState,
+    text: str,
+    file_name: str,
+    file_id: str,
+    requirements: JobRequirements | None,
+    routed_job_titles: list[str] | None = None,
+) -> ResumeResult:
     primary_provider = get_ai_provider()
     try:
-        text = await asyncio.to_thread(extract_text, file_path)
         result = await primary_provider.evaluate_resume(
             text,
             file_name,
             file_id,
-            requirements=job.requirements,
+            requirements=requirements,
             recruitment_document_text=(job.recruitment_document_context.document_text if job.recruitment_document_context else ""),
         )
-        return _finalize_result(result, job.requirements)
+        return _attach_routing_context(_finalize_result(result, requirements), routed_job_titles)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Primary provider failed for %s: %s", file_name, exc)
         fallback = get_fallback_provider(primary_provider)
@@ -166,18 +289,72 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
             return _error_result(file_id, file_name, str(exc))
 
         try:
-            text = await asyncio.to_thread(extract_text, file_path)
             result = await fallback.evaluate_resume(
                 text,
                 file_name,
                 file_id,
-                requirements=job.requirements,
+                requirements=requirements,
                 recruitment_document_text=(job.recruitment_document_context.document_text if job.recruitment_document_context else ""),
             )
-            return _finalize_result(result, job.requirements)
+            return _attach_routing_context(_finalize_result(result, requirements), routed_job_titles)
         except Exception as fallback_exc:  # noqa: BLE001
             logger.warning("Fallback provider also failed for %s: %s", file_name, fallback_exc)
             return _error_result(file_id, file_name, str(fallback_exc))
+
+
+async def process_single_resume(job: JobState, file_path: Path, file_name: str) -> ResumeResult:
+    """Extract text, evaluate with the AI provider, and return a result (never raises)."""
+    file_id = str(uuid.uuid4())
+    try:
+        text = await asyncio.to_thread(extract_text, file_path)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Resume text extraction failed for %s: %s", file_name, exc)
+        return _error_result(file_id, file_name, str(exc))
+
+    job_profiles = job.job_profiles
+    if not job_profiles and job.requirements is not None:
+        job_profiles = [JobOpeningProfile(title=job.requirements.job_role or "General Professional Role", requirements=job.requirements)]
+
+    if job_profiles:
+        selected_profiles, reject = _route_resume_to_job_profiles(text, job_profiles)
+        if reject:
+            return _routing_reject_result(file_id, file_name)
+
+        if len(selected_profiles) == 1:
+            requirements = selected_profiles[0].requirements
+            return await _evaluate_resume_for_requirements(
+                job,
+                text,
+                file_name,
+                file_id,
+                requirements,
+                routed_job_titles=[selected_profiles[0].title],
+            )
+
+        candidates: list[tuple[JobRequirements | None, ResumeResult]] = []
+        for profile in selected_profiles:
+            requirements = profile.requirements
+            result = await _evaluate_resume_for_requirements(
+                job,
+                text,
+                file_name,
+                file_id,
+                requirements,
+                routed_job_titles=[profile.title for profile in selected_profiles],
+            )
+            candidates.append((requirements, result))
+
+        _, best_result = _select_best_result(candidates)
+        return best_result
+
+    return await _evaluate_resume_for_requirements(
+        job,
+        text,
+        file_name,
+        file_id,
+        job.requirements,
+        routed_job_titles=[profile.title for profile in job.job_profiles] if job.job_profiles else None,
+    )
 
 
 def _finalize_result(result: ResumeResult, requirements: JobRequirements | None) -> ResumeResult:
