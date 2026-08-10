@@ -253,3 +253,5 @@ class OpenRouterProvider(AIProvider):
                     await asyncio.sleep(self._backoff * attempt)
 
         raise RuntimeError(f"OpenRouter job extraction failed after {self._max_retries} attempts: {last_error}")
+
+    

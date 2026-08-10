@@ -158,3 +158,5 @@ class GoogleProvider(AIProvider):
             experience_relevant=data.get("experience_relevant"),
             skills_match=data.get("skills_match"),
         )
+
+    

@@ -192,8 +192,8 @@ def infer_experience_years(text: str | None) -> int | None:
 
     patterns = [
         r"\b(\d+)\s*\+\s*years?\b",
-        r"\b(\d+)\s*-\s*(\d+)\s*years?\b",
-        r"\b(?:over|more than|at least)\s+(\d+)\s*years?\b",
+        r"\b(\d+)\s*(?:-|–|—|to)\s*(\d+)\s*years?\b",
+        r"\b(?:over|more than|at least|minimum|min(?:imum)?)\s+(\d+)\s*years?\b",
         r"\b(\d+)\s*years?\b",
     ]
 

@@ -223,6 +223,7 @@ class GroqProvider(AIProvider):
 
         raise RuntimeError(f"Groq job extraction failed after {self._max_retries} attempts: {last_error}")
 
+    
     @staticmethod
     def _infer_candidate_name(resume_text: str) -> str:
         if not resume_text:

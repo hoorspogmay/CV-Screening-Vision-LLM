@@ -298,3 +298,5 @@ def build_user_prompt(
         "\n\nResume text:\n\n"
         f"{resume_block}"
     )
+
+

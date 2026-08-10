@@ -36,3 +36,4 @@ class AIProvider(ABC):
         resume never stops the batch.
         """
         raise NotImplementedError
+    

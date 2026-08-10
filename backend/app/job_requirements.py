@@ -61,6 +61,52 @@ def _find_int(text: str, patterns: list[str]) -> Optional[int]:
     return int(digits.group(1)) if digits else None
 
 
+def _find_experience_range(text: str, patterns: list[str]) -> tuple[Optional[int], Optional[int]]:
+    """Searches the full text for experience expressions and returns (min_experience, max_experience).
+
+    This inspects the entire input text (not a single matched group) so separate
+    'Minimum' and 'Maximum' lines are both considered.
+    """
+    s = (text or "").replace("–", "-").replace("—", "-").lower()
+    if not s:
+        return None, None
+
+    # Range like '1-3 years'
+    m = re.search(r"(\d+)\s*-\s*(\d+)", s)
+    if m:
+        try:
+            lo = int(m.group(1))
+            hi = int(m.group(2))
+            return lo, hi
+        except ValueError:
+            pass
+
+    # At least / minimum / '2+ years'
+    m = re.search(r"(\d+)\s*\+", s)
+    if m:
+        try:
+            return int(m.group(1)), None
+        except ValueError:
+            pass
+
+    m = re.search(r"(?:at least|minimum|min(?:imum)?|>=?)\s*(?:of\s*)?(\d+)", s)
+    if m:
+        try:
+            return int(m.group(1)), None
+        except ValueError:
+            pass
+
+    # '2 years minimum' or simple '2 years'
+    m = re.search(r"(\d+)\s*years?", s)
+    if m:
+        try:
+            return int(m.group(1)), None
+        except ValueError:
+            pass
+
+    return None, None
+
+
 def _find_bool(text: str, patterns: list[str]) -> bool:
     value = _find_value(text, patterns)
     if not value:
@@ -71,6 +117,9 @@ def _find_bool(text: str, patterns: list[str]) -> bool:
 def _find_skills(text: str) -> list[str]:
     value = _find_value(text, [
         r"required\s+skills\s*[:\-]\s*(.+)",
+        r"desired\s+skills\s*[:\-]\s*(.+)",
+        r"preferred\s+skills\s*[:\-]\s*(.+)",
+        r"must[- ]have\s+skills\s*[:\-]\s*(.+)",
         r"skills\s*[:\-]\s*(.+)",
     ])
     if not value:
@@ -92,17 +141,68 @@ def _parse_requirements_from_text(spec_text: str, fallback_role: str = "") -> Jo
     education = _find_value(text, [
         r"required\s*education\s*[:\-]\s*(.+)",
         r"education\s*[:\-]\s*(.+)",
+        r"required\s*qualification\s*[:\-]\s*(.+)",
+        r"qualification\s*[:\-]\s*(.+)",
     ])
-    min_experience = _find_int(text, [
-        r"minimum\s*experience\s*[:\-]\s*(.+)",
-        r"min\s*experience\s*[:\-]\s*(.+)",
+    # Extract min/max experience with multiple heuristics so separate
+    # 'Minimum Experience' and 'Maximum Experience' lines are both respected.
+    s = (text or "").replace("–", "-").replace("—", "-").lower()
+
+    # 1) Explicit range like '1-3 years' or '1 to 3 years'
+    m_range = re.search(r"(\d+)\s*(?:-|to)\s*(\d+)\s*years?", s)
+    if m_range:
+        try:
+            min_experience = int(m_range.group(1))
+            max_experience = int(m_range.group(2))
+        except ValueError:
+            min_experience = None
+            max_experience = None
+    else:
+        # 2) Explicit labeled min/max lines
+        min_experience = _find_int(text, [
+            r"minimum\s*experience\s*[:\-]\s*(.+)",
+            r"min\s*experience\s*[:\-]\s*(.+)",
+        ])
+        max_experience = _find_int(text, [
+            r"maximum\s*experience\s*[:\-]\s*(.+)",
+            r"max\s*experience\s*[:\-]\s*(.+)",
+        ])
+
+        # 3) '1+ years' or 'at least 2 years' forms
+        if min_experience is None:
+            m_plus = re.search(r"(\d+)\s*\+\s*years?", s)
+            if m_plus:
+                try:
+                    min_experience = int(m_plus.group(1))
+                except ValueError:
+                    min_experience = None
+        if min_experience is None:
+            m_atleast = re.search(r"(?:at least|minimum|min(?:imum)?)\s*(?:of\s*)?(\d+)\s*years?", s)
+            if m_atleast:
+                try:
+                    min_experience = int(m_atleast.group(1))
+                except ValueError:
+                    min_experience = None
+
+        # 4) If still missing but the text contains multiple 'X years' numbers,
+        # use the smallest as min and largest as max as a best-effort fallback.
+        if min_experience is None and max_experience is None:
+            all_nums = [int(m.group(1)) for m in re.finditer(r"(\d+)\s*years?", s)]
+            if all_nums:
+                try:
+                    min_experience = min(all_nums)
+                    if len(all_nums) > 1:
+                        max_experience = max(all_nums)
+                except ValueError:
+                    pass
+    allow_overqualified = _find_bool(text, [
+        r"allow\s*overqualified\s*[:\-]\s*(.+)",
+        r"overqualified\s*(?:candidates|applications)?\s*[:\-]\s*(.+)",
     ])
-    max_experience = _find_int(text, [
-        r"maximum\s*experience\s*[:\-]\s*(.+)",
-        r"max\s*experience\s*[:\-]\s*(.+)",
+    allow_internships = _find_bool(text, [
+        r"allow\s*internships\s*[:\-]\s*(.+)",
+        r"internships\s*(?:allowed|accepted)?\s*[:\-]\s*(.+)",
     ])
-    allow_overqualified = _find_bool(text, [r"allow\s*overqualified\s*[:\-]\s*(.+)"])
-    allow_internships = _find_bool(text, [r"allow\s*internships\s*[:\-]\s*(.+)"])
 
     return JobRequirements(
         job_role=role or "General Professional Role",
