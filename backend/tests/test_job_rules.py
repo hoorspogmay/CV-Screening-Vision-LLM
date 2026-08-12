@@ -161,31 +161,46 @@ def test_skill_gap_does_not_hard_reject_when_overall_fit_is_good() -> None:
     assert decision != Decision.REJECT
 
 
-def test_final_classification_uses_fixed_thresholds_over_custom_settings() -> None:
-    requirements = JobRequirements(
-        job_role="Software Engineer",
-        required_education="Bachelor's",
-        min_experience=2,
-        accept_threshold=75,
-        doubtful_threshold=60,
+def test_skills_match_false_without_hard_mismatch_returns_doubtful() -> None:
+    requirements = JobRequirements(job_role="Civil Engineer", required_skills=["Structural analysis", "Revit", "AutoCAD"])
+
+    decision, _ = apply_business_rules(
+        requirements,
+        {
+            "education_level": "Bachelor",
+            "education_relevant": True,
+            "experience_years": 5,
+            "experience_relevant": True,
+            "skills_match": False,
+            "reason": "Strong fit with structural analysis and Revit. A preferred CAD variant was not mentioned.",
+            "skills_summary": "Structural analysis, Revit, concrete design",
+        },
     )
+
+    assert decision == Decision.DOUBTFUL
+
+
+def test_finalize_result_rewrites_nice_to_have_for_mandatory_required_skill() -> None:
+    requirements = JobRequirements(job_role="Healthcare Administrator", required_skills=["Active RN license"])
     result = ResumeResult(
-        file_id="resume-2",
-        file_name="resume-2.pdf",
-        candidate_name="Bob Example",
+        file_id="resume-10",
+        file_name="resume-10.pdf",
+        candidate_name="Nurse Example",
         decision=Decision.REJECT,
-        summary="Candidate is a strong match.",
-        match_score=75,
+        summary="Candidate is a reasonable fit overall, but an active RN license would be nice-to-have.",
+        match_score=65,
         education_level="Bachelor",
         education_relevant=True,
-        experience_years=3,
+        experience_years=4,
         experience_relevant=True,
-        skills_match=True,
+        skills_match=False,
     )
 
     finalized = _finalize_result(result, requirements)
 
     assert finalized.decision == Decision.DOUBTFUL
+    assert "mandatory" in finalized.summary.lower()
+    assert "nice-to-have" not in finalized.summary.lower()
 
 
 def test_final_score_buckets_are_strictly_enforced() -> None:

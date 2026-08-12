@@ -198,72 +198,82 @@ def _jaccard_overlap(a: set[str], b: set[str]) -> float:
     return len(a & b) / len(a | b)
 
 
+def _match_required_skills(resume_text: str, required_skills: list[str]) -> float:
+    if not required_skills:
+        return 0.0
+
+    normalized_resume = _normalize_routing_text(resume_text)
+    if not normalized_resume:
+        return 0.0
+
+    generic_low_weight = {"autocad", "office", "excel", "word", "powerpoint", "cad", "microsoft"}
+    matched = 0.0
+    max_score = 0.0
+
+    for skill in required_skills:
+        skill_token = _normalize_routing_text(skill)
+        if not skill_token:
+            continue
+
+        max_score += 1.0
+        pattern = rf"\b{re.escape(skill_token)}\b"
+        if re.search(pattern, normalized_resume):
+            weight = 0.25 if skill_token in generic_low_weight else 1.0
+            matched += weight
+
+    if max_score == 0:
+        return 0.0
+
+    return min(1.0, matched / max_score)
+
+
 def _semantic_profile_score(resume_text: str, profile: JobOpeningProfile) -> float:
-    profile_text = " ".join(
-        part for part in [
+    resume_terms = _expand_routing_terms(resume_text)
+    resume_tokens = set(_normalize_routing_text(resume_text).split())
+
+    profile_terms = _expand_routing_terms(
+        " ".join([
             profile.title,
             profile.requirements.job_role,
             profile.requirements.required_education,
             " ".join(profile.requirements.required_skills),
-        ] if part
+            profile.description,
+        ] if profile else [])
     )
 
-    # Expand both sides consistently
-    resume_terms = _expand_routing_terms(resume_text)
-    profile_terms = _expand_routing_terms(profile_text)
-    resume_tokens = set(_normalize_routing_text(resume_text).split())
-    profile_tokens = set(_normalize_routing_text(profile_text).split())
-
-    # Title overlap — use expanded terms on both sides
-    title_tokens = _expand_routing_terms(
+    title_terms = _expand_routing_terms(
         " ".join([profile.title or "", profile.requirements.job_role or ""])
     )
-    title_score = _jaccard_overlap(resume_terms, title_tokens)
+    title_score = _jaccard_overlap(resume_terms, title_terms)
 
-    # Domain overlap — symmetric, not biased by profile length
     domain_score = _jaccard_overlap(resume_terms, profile_terms)
 
-    # Skill overlap — expanded terms on both sides
-    required_skills = _expand_routing_terms(
-        " ".join(profile.requirements.required_skills)
-    ) if profile.requirements.required_skills else set()
-    skill_score = _jaccard_overlap(resume_tokens, required_skills) if required_skills else 0.0
+    skill_score = _match_required_skills(resume_text, profile.requirements.required_skills)
 
-    # Education — unchanged, it's already a binary signal
     education_tokens = set(_normalize_routing_text(profile.requirements.required_education or "").split())
-    related_education_tokens = {
-        "medical", "biomedical", "laboratory", "diagnostic", "healthcare", "nursing", "science",
-        "business", "administration", "management", "accounting", "finance", "hospitality",
-    }
-    education_score = 1.0 if bool(resume_tokens & (education_tokens | related_education_tokens)) and domain_score > 0 else 0.0
+    education_score = 1.0 if education_tokens and bool(resume_tokens & education_tokens) else 0.0
 
-    # Experience indicators — unchanged
     experience_indicators = {
         "experience", "experienced", "worked", "responsible", "duties", "responsibilities",
         "years", "managed", "supervised", "coordinated", "led", "operations",
-        "administrative", "customer", "clinical", "laboratory", "diagnostic",
-        "testing", "support",
+        "site", "construction", "surveying", "design",
     }
     experience_score = 1.0 if bool(resume_tokens & experience_indicators) and domain_score > 0 else 0.0
 
     weighted = (
-        0.35 * title_score +
-        0.25 * domain_score +
-        0.20 * experience_score +
+        0.15 * title_score +
+        0.15 * domain_score +
+        0.35 * skill_score +
         0.10 * education_score +
-        0.10 * skill_score
+        0.25 * experience_score
     )
 
-    # Guard: require at least two signals to fire, not just one
-    signals_firing = sum([
-        title_score >= 0.05,
-        domain_score >= 0.05,
-        skill_score >= 0.05,
-    ])
-    if signals_firing < 2:
+    if profile.requirements.required_skills and skill_score < 0.2:
         return 0.0
 
-    return round(min(1.0, weighted), 3)
+    if score := round(min(1.0, weighted), 3):
+        return score
+    return 0.0
 
 
 def _route_resume_to_job_profiles(
@@ -601,20 +611,25 @@ def _finalize_result(result: ResumeResult, requirements: JobRequirements | None)
 
     authoritative = _validate_match_score_from_reasoning(result.match_score, result.summary)
     sanitized_summary = _sanitize_reasoning_for_score(result.summary, authoritative)
+    adjusted_summary = _adjust_summary_for_missing_mandatory_requirements(
+        sanitized_summary,
+        requirements,
+        normalized_skills_match if normalized_skills_match is not None else result.skills_match,
+    )
 
     final_decision = classify_by_match_score(
         authoritative,
         result.decision,
         requirements,
-        reasoning=sanitized_summary,
+        reasoning=adjusted_summary,
     )
 
     updates: dict[str, object] = {}
     # Do NOT change match_score here — keep the model's numeric signal as the final authority.
     if final_decision != result.decision:
         updates["decision"] = final_decision
-    if sanitized_summary is not None and sanitized_summary != result.summary:
-        updates["summary"] = sanitized_summary
+    if adjusted_summary is not None and adjusted_summary != result.summary:
+        updates["summary"] = adjusted_summary
 
     # Include reconciled structured fields so outputs don't contradict the summary.
     # Experience: if reconciled to None but original was 0, set to None.
@@ -634,6 +649,32 @@ def _finalize_result(result: ResumeResult, requirements: JobRequirements | None)
     if not updates:
         return result
     return result.model_copy(update=updates)
+
+
+def _adjust_summary_for_missing_mandatory_requirements(
+    summary: str | None,
+    requirements: JobRequirements | None,
+    skills_match: bool | None,
+) -> str | None:
+    if not summary or requirements is None or not requirements.required_skills:
+        return summary
+    if skills_match is not False:
+        return summary
+
+    text = summary
+    if re.search(r"\b(nice[- ]to[- ]have|nice to have|preferred|optional)\b", text, flags=re.IGNORECASE):
+        text = re.sub(r"\bnice[- ]to[- ]have\b", "mandatory", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bpreferred\b", "required", text, flags=re.IGNORECASE)
+        text = re.sub(r"\boptional\b", "required", text, flags=re.IGNORECASE)
+        if text == summary:
+            return summary
+        if "mandatory" not in text.lower() and "required" not in text.lower():
+            text = text.strip()
+            if not text.endswith("."):
+                text += "."
+            text += " This requirement should be treated as mandatory for this role."
+        return text
+    return summary
 
 
 async def run_screening_job(job: JobState, file_paths: list[tuple[Path, str]]) -> None:

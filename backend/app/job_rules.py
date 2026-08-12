@@ -33,9 +33,11 @@ def _determine_decision(requirements: JobRequirements, ai_payload: dict[str, Any
     if skills_match_signal is False and requirements.required_skills:
         summary = str(ai_payload.get("skills_summary") or "").lower()
         reason = str(ai_payload.get("reason") or "").lower()
-        if "minor" in summary or "minor" in reason or "one" in summary or "one" in reason:
-            return Decision.ACCEPT
-        return Decision.REJECT
+        if _summary_indicates_hard_skill_mismatch(summary) or _summary_indicates_hard_skill_mismatch(reason):
+            return Decision.REJECT
+        # Do not hard reject solely because skills_match is false.
+        # The model may have flagged a gap in a preferred or minor skill.
+        return Decision.DOUBTFUL
 
     if requirements.required_education:
         requirement = requirements.required_education.lower().strip()
@@ -116,20 +118,61 @@ def _has_required_skills(skills_summary: str, required_skills: list[str]) -> boo
 
 def _summary_indicates_hard_skill_mismatch(skills_summary: str) -> bool:
     text = (skills_summary or "").lower()
+    if not text:
+        return False
+
+    hard_negative_phrases = [
+        "does not have",
+        "doesn't have",
+        "lacks required",
+        "lacks the required",
+        "no relevant",
+        "not proficient",
+        "not experienced",
+        "fails requirement",
+        "fails mandatory",
+        "fails the role",
+        "does not meet",
+        "doesn't meet",
+        "not qualified",
+        "not suitable",
+        "poor fit",
+    ]
+    if any(phrase in text for phrase in hard_negative_phrases):
+        return True
+
+    mild_context = [
+        "minor",
+        "small",
+        "one",
+        "single",
+        "preferred",
+        "optional",
+        "still strong",
+        "overall strong",
+        "good fit",
+        "strong fit",
+        "broadly",
+        "still a good",
+        "acceptable",
+    ]
     negative_markers = [
         "missing",
         "lacks",
-        "does not have",
-        "doesn't have",
-        "no relevant",
+        "without",
         "insufficient",
         "weak on",
         "poor on",
-        "without",
         "not proficient",
         "not experienced",
     ]
-    return any(marker in text for marker in negative_markers)
+
+    if any(marker in text for marker in negative_markers):
+        if any(context in text for context in mild_context):
+            return False
+        return True
+
+    return False
 
 
 def _build_reason(requirements: JobRequirements, ai_payload: dict[str, Any], decision: Decision) -> str:
