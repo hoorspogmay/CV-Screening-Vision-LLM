@@ -268,9 +268,6 @@ def _semantic_profile_score(resume_text: str, profile: JobOpeningProfile) -> flo
         0.25 * experience_score
     )
 
-    if profile.requirements.required_skills and skill_score < 0.2:
-        return 0.0
-
     if score := round(min(1.0, weighted), 3):
         return score
     return 0.0
@@ -409,18 +406,19 @@ def _routing_reject_result(file_id: str, file_name: str, candidate_name: str = "
     )
 
 
-def _select_best_result(results: list[tuple[JobRequirements | None, ResumeResult]]) -> tuple[JobRequirements | None, ResumeResult]:
-    def rank(item: tuple[JobRequirements | None, ResumeResult]) -> tuple[float, int]:
-        requirements, result = item
+def _select_best_result(results: list[tuple[int, JobRequirements | None, ResumeResult]]) -> tuple[JobRequirements | None, ResumeResult]:
+    def rank(item: tuple[int, JobRequirements | None, ResumeResult]) -> tuple[int, float, int]:
+        route_rank, requirements, result = item
         score = result.match_score if result.match_score is not None else 0.0
         decision_weight = {
             Decision.ACCEPT: 3,
             Decision.DOUBTFUL: 2,
             Decision.REJECT: 1,
         }.get(result.decision, 0)
-        return (score, decision_weight)
+        # Prefer the best evaluation first, then the most relevant routed job.
+        return (decision_weight, score, -route_rank)
 
-    return max(results, key=rank)
+    return max(results, key=rank)[1:]
 
 
 def _attach_routing_context(result: ResumeResult, routed_job_titles: list[str] | None) -> ResumeResult:
@@ -495,8 +493,8 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
                 routed_job_titles=[selected_profiles[0].title],
             )
 
-        candidates: list[tuple[JobRequirements | None, ResumeResult]] = []
-        for profile in selected_profiles:
+        candidates: list[tuple[int, JobRequirements | None, ResumeResult]] = []
+        for route_rank, profile in enumerate(selected_profiles):
             requirements = profile.requirements
             result = await _evaluate_resume_for_requirements(
                 job,
@@ -506,7 +504,7 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
                 requirements,
                 routed_job_titles=[profile.title for profile in selected_profiles],
             )
-            candidates.append((requirements, result))
+            candidates.append((route_rank, requirements, result))
 
         _, best_result = _select_best_result(candidates)
         return best_result

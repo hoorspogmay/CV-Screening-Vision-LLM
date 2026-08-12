@@ -15,6 +15,66 @@ def apply_business_rules(requirements: JobRequirements, ai_payload: dict[str, An
     return decision, reason
 
 
+def _normalize_degree_level(level: str) -> str:
+    text = (level or "").lower().strip()
+    if not text:
+        return "none"
+    if any(k in text for k in ("phd", "doctorate")):
+        return "phd"
+    if any(k in text for k in ("master", "msc", "m.sc", "mba", "m.a", "m.s")):
+        return "master"
+    if any(k in text for k in ("bachelor", "bsc", "b.sc", "ba", "bs", "b.s", "bachelors", "bachelor's", "undergraduate", "college")):
+        return "bachelor"
+    if any(k in text for k in ("associate", "aa", "as", "associate's")):
+        return "associate"
+    if any(k in text for k in ("diploma", "certificate", "cert", "high school", "secondary")):
+        return "other"
+    if "degree" in text:
+        return "bachelor"
+    return "none"
+
+
+def _education_matches_requirement(
+    requirement: str,
+    education_level: str,
+    education_relevant: bool | None,
+    experience_years: int | None,
+    experience_relevant: bool | None,
+    min_experience: int | None,
+) -> bool:
+    req = (requirement or "").lower().strip()
+    cand = _normalize_degree_level(education_level)
+    related_requirement = any(keyword in req for keyword in ("related", "equivalent", "or equivalent", "or related"))
+
+    if not req or req in {"none", "any"}:
+        return True
+
+    if "bachelor" in req:
+        if cand in {"bachelor", "master", "phd"}:
+            return True
+        if related_requirement and cand != "none":
+            return True
+        if education_relevant is True and experience_relevant is True and (experience_years or 0) >= 5:
+            return True
+        return False
+
+    if "master" in req:
+        if cand in {"master", "phd"}:
+            return True
+        if related_requirement and cand == "bachelor" and education_relevant is True and experience_relevant is True and (experience_years or 0) >= max(min_experience or 0, 7):
+            return True
+        return False
+
+    if "phd" in req or "doctorate" in req:
+        return cand in {"phd", "doctorate"}
+
+    if related_requirement and cand != "none":
+        return True
+    if education_relevant is True:
+        return True
+    return cand != "none"
+
+
 def _determine_decision(requirements: JobRequirements, ai_payload: dict[str, Any]) -> Decision:
     education_level = str(ai_payload.get("education_level") or "").strip().lower()
     education_relevant = ai_payload.get("education_relevant")
@@ -40,39 +100,15 @@ def _determine_decision(requirements: JobRequirements, ai_payload: dict[str, Any
         return Decision.DOUBTFUL
 
     if requirements.required_education:
-        requirement = requirements.required_education.lower().strip()
-        if "bachelor" in requirement:
-            if education_level in {"bachelor", "bachelors", "equivalent bachelor", "equivalent bachelor's", "equivalent degree", "bachelor's"}:
-                pass
-            elif education_level in {"master", "master's", "equivalent master", "equivalent master's", "equivalent master's degree"}:
-                pass
-            elif education_level in {"phd", "doctorate"}:
-                if requirements.allow_overqualified:
-                    pass
-                else:
-                    return Decision.REJECT
-            else:
-                return Decision.REJECT
-        elif "master" in requirement:
-            if education_level in {"master", "master's", "equivalent master", "equivalent master's"}:
-                pass
-            elif education_level in {"bachelor", "bachelor's"}:
-                return Decision.REJECT
-            elif education_level in {"phd", "doctorate"}:
-                if requirements.allow_overqualified:
-                    pass
-                else:
-                    return Decision.REJECT
-            else:
-                return Decision.REJECT
-        elif "phd" in requirement or "doctorate" in requirement:
-            if education_level in {"phd", "doctorate"}:
-                pass
-            else:
-                return Decision.REJECT
-        elif requirement not in {"", "none"}:
-            if education_level == "none" and not requirements.allow_overqualified:
-                return Decision.REJECT
+        if not _education_matches_requirement(
+            requirements.required_education,
+            education_level,
+            education_relevant,
+            experience_years,
+            experience_relevant,
+            requirements.min_experience,
+        ):
+            return Decision.REJECT
 
     if requirements.min_experience is not None or requirements.max_experience is not None:
         if experience_relevant is True:
@@ -88,16 +124,11 @@ def _determine_decision(requirements: JobRequirements, ai_payload: dict[str, Any
 
     # If the AI did not explicitly state skills_match, use the model's own narrative
     # rather than applying a hard deterministic reject for any missing required skill.
-    if requirements.required_skills:
-        if skills_match_signal is False:
-            return Decision.REJECT
-        if skills_match_signal is True:
-            pass
-        else:
-            skills_summary = str(ai_payload.get("skills_summary") or "")
-            if not _has_required_skills(skills_summary, requirements.required_skills):
-                if _summary_indicates_hard_skill_mismatch(skills_summary):
-                    return Decision.REJECT
+    if requirements.required_skills and skills_match_signal is None:
+        skills_summary = str(ai_payload.get("skills_summary") or "")
+        if not _has_required_skills(skills_summary, requirements.required_skills):
+            if _summary_indicates_hard_skill_mismatch(skills_summary):
+                return Decision.REJECT
 
     return Decision.ACCEPT
 

@@ -25,6 +25,16 @@ def classify_by_match_score(
         except (TypeError, ValueError):
             score = score_from_reasoning(reasoning_text)
 
+    # Some providers return a fractional score in the range 0.0-1.0.
+    # Treat any value <= 1.0 as a fraction and scale to 0-100 so
+    # classification thresholds remain consistent.
+    try:
+        if 0.0 <= score <= 1.0:
+            score = score * 100.0
+    except TypeError:
+        # Non-numeric defensive fallback: derive from reasoning
+        score = score_from_reasoning(reasoning_text)
+
     score = max(0.0, min(100.0, score))
     accept_threshold = 80
     doubtful_threshold = 50
