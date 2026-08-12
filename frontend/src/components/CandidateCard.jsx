@@ -17,21 +17,8 @@ export default function CandidateCard({ result }) {
         ? "candidate-card--reject"
         : "candidate-card--error";
 
-  const badgeClass = decision === "ACCEPT"
-    ? "badge--accept"
-    : decision === "DOUBTFUL"
-      ? "badge--doubtful"
-      : decision === "REJECT"
-        ? "badge--reject"
-        : "badge--error";
-
-  const badgeLabel = decision === "ACCEPT"
-    ? "Accepted"
-    : decision === "DOUBTFUL"
-      ? "Doubtful"
-      : decision === "REJECT"
-        ? "Rejected"
-        : "Error";
+  const scoreLabel = score !== null ? `${Math.round(score)}%` : "--";
+  const routingText = routingLabel;
 
   return (
     <article className={`candidate-card ${cardClass}`}>
@@ -40,14 +27,22 @@ export default function CandidateCard({ result }) {
           <h4 className="candidate-card__name">{result.candidate_name || "Unknown Candidate"}</h4>
           <p className="candidate-card__file">{result.file_name}</p>
         </div>
-        <span className={`badge ${badgeClass}`}>{badgeLabel}</span>
+        <div className="candidate-card__meta">
+          <span className="candidate-card__score-value">{scoreLabel}</span>
+        </div>
+      </div>
+
+      <div className="candidate-card__gauge">
+        <div className="candidate-card__gauge-track">
+          <div className={`candidate-card__gauge-fill candidate-card__gauge-fill--${decision.toLowerCase()}`} style={{ width: score !== null ? `${Math.max(0, Math.min(score, 100))}%` : "0%" }} />
+        </div>
       </div>
 
       {!hasError && score !== null ? (
-        <p className="candidate-card__score">Match Score: {Math.round(score)}/100</p>
+        <p className="candidate-card__requirements">{Math.round((score / 100) * 9)} / 9 requirements met</p>
       ) : null}
 
-      {routingLabel ? <p className="candidate-card__routing">{routingLabel}</p> : null}
+      {routingText ? <p className="candidate-card__routing">{routingText}</p> : null}
 
       {hasError ? (
         <p className="candidate-card__error">Could not process this resume: {result.error}</p>

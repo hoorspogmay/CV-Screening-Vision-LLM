@@ -4,21 +4,20 @@ export default function Navbar() {
       <div className="container navbar__inner">
         <div className="navbar__brand">
           <span className="navbar__mark" aria-hidden="true">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <rect x="2" y="2" width="16" height="16" rx="5" fill="var(--color-primary)" />
-              <path
-                d="M6 10.2l2.4 2.4L14 7"
-                stroke="white"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M12 5v14" stroke="white" strokeWidth="2" />
+              <path d="M5 12h14" stroke="white" strokeWidth="2" />
+              <path d="M17 7L21 7" stroke="white" strokeWidth="2" strokeLinecap="round" />
+              <path d="M7 17L3 17" stroke="white" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </span>
           <div>
             <h1 className="navbar__title">Talent Screen</h1>
-            <p className="navbar__subtitle">IT Resume Screening</p>
+            <p className="navbar__subtitle">Production-grade resume screening</p>
           </div>
+        </div>
+        <div className="navbar__actions">
+          <button type="button" className="btn btn--outline-signal">Dark mode</button>
         </div>
       </div>
     </header>

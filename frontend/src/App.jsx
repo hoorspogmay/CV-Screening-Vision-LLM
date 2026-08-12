@@ -32,10 +32,23 @@ export default function App() {
 
       <main className="main">
         <div className="container">
-          <RequirementsPanel jobSpecFile={jobSpecFile} setJobSpecFile={setJobSpecFile} status={status} deducedJobs={deducedJobs} />
-          <UploadArea onStart={beginScreening} status={status} jobSpecFile={jobSpecFile} setJobSpecFile={setJobSpecFile} />
+          <section className="step-panel">
+            <span className="step-panel__eyebrow">Step 1</span>
+            <h2 className="step-panel__title">Job specification</h2>
+            <RequirementsPanel jobSpecFile={jobSpecFile} setJobSpecFile={setJobSpecFile} status={status} deducedJobs={deducedJobs} />
+          </section>
 
-          <ProgressPanel status={status} progress={progress} />
+          <section className="step-panel">
+            <span className="step-panel__eyebrow">Step 2</span>
+            <h2 className="step-panel__title">Candidate resumes</h2>
+            <UploadArea onStart={beginScreening} status={status} jobSpecFile={jobSpecFile} setJobSpecFile={setJobSpecFile} />
+          </section>
+
+          <section className="step-panel">
+            <span className="step-panel__eyebrow">Step 3</span>
+            <h2 className="step-panel__title">Screening progress</h2>
+            <ProgressPanel status={status} progress={progress} />
+          </section>
 
           <ExportBar jobId={jobId} status={status} onReset={reset} />
 
@@ -48,14 +61,17 @@ export default function App() {
                 const rejectedForJob = jobResults.filter((r) => r.decision === "REJECT" || r.error);
 
                 return (
-                  <div key={jobTitle} className="job-results-group">
-                    <h3 className="job-results-group__title">{jobTitle}</h3>
-                    <div className="results-grid results-grid--job">
+                  <section key={jobTitle} className="results-section">
+                    <div className="results-section__header">
+                      <h3>{jobTitle || "General Role"}</h3>
+                      <p>{jobResults.length} candidate{jobResults.length === 1 ? "" : "s"} routed here</p>
+                    </div>
+                    <div className="results-grid results-grid--grouped">
                       <ResultsPanel title="Accepted" variant="accept" results={acceptedForJob} pendingCount={skeletonsPerPanel} status={status} />
                       <ResultsPanel title="Doubtful" variant="doubtful" results={doubtfulForJob} pendingCount={skeletonsPerPanel} status={status} />
                       <ResultsPanel title="Rejected" variant="reject" results={rejectedForJob} pendingCount={skeletonsPerPanel} status={status} />
                     </div>
-                  </div>
+                  </section>
                 );
               })
             ) : (
