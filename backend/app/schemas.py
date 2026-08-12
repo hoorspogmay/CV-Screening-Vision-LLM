@@ -5,6 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from app.job_requirements import JobOpeningProfile
 from pydantic import BaseModel, Field
 
 
@@ -49,6 +50,7 @@ class JobProgress(BaseModel):
 class StartScreeningResponse(BaseModel):
     job_id: str
     total_files: int
+    job_profiles: list[JobOpeningProfile] = Field(default_factory=list)
 
 
 class WSEventType(str, Enum):

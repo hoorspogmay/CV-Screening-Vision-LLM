@@ -13,7 +13,7 @@ import { useToasts } from "./hooks/useToasts.js";
 
 export default function App() {
   const { toasts, pushToast, dismissToast } = useToasts();
-  const { status, jobId, progress, results, beginScreening, reset } = useScreeningJob(pushToast);
+  const { status, jobId, deducedJobs, progress, results, beginScreening, reset } = useScreeningJob(pushToast);
   const [jobSpecFile, setJobSpecFile] = useState(null);
 
   const accepted = results.filter((r) => r.decision === "ACCEPT" && !r.error);
@@ -32,7 +32,7 @@ export default function App() {
 
       <main className="main">
         <div className="container">
-          <RequirementsPanel jobSpecFile={jobSpecFile} setJobSpecFile={setJobSpecFile} status={status} />
+          <RequirementsPanel jobSpecFile={jobSpecFile} setJobSpecFile={setJobSpecFile} status={status} deducedJobs={deducedJobs} />
           <UploadArea onStart={beginScreening} status={status} jobSpecFile={jobSpecFile} setJobSpecFile={setJobSpecFile} />
 
           <ProgressPanel status={status} progress={progress} />

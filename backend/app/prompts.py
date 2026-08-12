@@ -1,9 +1,21 @@
-﻿"""Prompt templates for the generic recruitment screening platform."""
+﻿"""Prompt templates for the recruitment screening platform.
+
+This module is the single source of truth for ALL prompt text:
+  - SYSTEM_PROMPT / build_user_prompt  — resume screening
+  - EXTRACTION_PROMPT                  — job extraction from hiring notices
+
+job_extraction_prompt.py is superseded by this file. Update any remaining
+imports to point here, then delete job_extraction_prompt.py.
+"""
 from __future__ import annotations
 
 import dataclasses
 
 from app.job_requirements import JobRequirements
+
+# ---------------------------------------------------------------------------
+# Resume screening prompts
+# ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """You are a Senior Recruiter with 15+ years of experience evaluating resumes
 against recruiter-defined requirements. You are careful, evidence-based, and calibrated — you
@@ -133,27 +145,19 @@ background, security clearance, or any other explicit criterion — must be indi
 against the resume evidence:
 
 - Judge each additional requirement on its own terms using the same evidence-based, semantic
-  approach used for education and skills (e.g. "PMP or equivalent" accepts an equivalent
-  certification; "based in or willing to relocate to X" accepts a candidate already local to X).
+  approach used for education and skills.
 - If the resume provides no evidence one way or the other for a stated additional requirement,
   say so plainly in the summary instead of assuming it is met.
 - A candidate should not be scored as a strong match if they clearly fail a hard, explicit
-  additional requirement (e.g. a mandatory license they do not hold), even if education,
-  experience, and skills are otherwise excellent. Weigh how essential the requirement appears
-  (mandatory vs. preferred language, e.g. "must have" vs. "nice to have") when deciding how much
-  it should affect the score.
+  additional requirement, even if education, experience, and skills are otherwise excellent.
 - Do not penalize a candidate for additional requirements the recruiter did not specify.
 
 ---
 
 ## CONSISTENCY REQUIREMENT
 
-The summary and match_score must describe the same conclusion across every requirement the
-recruiter provided — not just education, experience, and skills. Never produce a high score with
-an underqualified summary, a positive summary with a reject decision lacking a stated reason, or
-a high score that ignores a clearly unmet additional requirement. Before finalizing, re-check:
-does every claim in the summary point toward the same score band as the number you're about to
-output? If not, revise one to match the other.
+Before writing the JSON, ask: does the summary agree with the match_score? Does the decision
+agree with the score? If not, revise one to match the other.
 
 Use a balanced and realistic scale. Avoid overreacting to a single missing skill or a single
 missing detail. If the candidate is broadly suitable across all stated requirements, keep the
@@ -163,24 +167,15 @@ score in the middle-to-high range rather than making it overly harsh or overly g
 
 ## MATCH SCORE
 
-Represents candidate suitability against everything the recruiter specified, not model
-confidence.
+Represents candidate suitability against everything the recruiter specified.
 
 - 80–100: Broadly satisfies the role and its essential requirements (including any additional
-  ones specified). Example: meets/exceeds experience and education, has all or nearly all
-  required skills, no failed additional requirements.
-- 60–79: Reasonable match with some gaps, missing details, or partial evidence — including gaps
-  in additional requirements. Example: slightly under min_experience, or missing 1-2 of several
-  required skills, or an additional requirement has no resume evidence either way.
+  ones specified).
+- 60–79: Reasonable match with some gaps, missing details, or partial evidence.
 - 40–59: Mixed fit; significant gaps or uncertainty remain in one or more requirement areas.
-  Example: meets education and skills but experience is well short of min_experience, or a
-  "preferred" additional requirement is clearly unmet.
 - 0–39: Clearly fails multiple essential requirements, or fails a hard mandatory requirement.
-  Example: unrelated field of education AND well under min_experience, or missing a mandatory
-  license/certification the recruiter marked as required.
 
-Two candidates with the same shape of gap should receive comparably similar scores — do not let
-unrelated resume polish or verbosity shift the number.
+Two candidates with the same shape of gap should receive comparably similar scores.
 
 ---
 
@@ -203,9 +198,9 @@ match_score and experience_years must be JSON integers, not strings.
 }
 """
 
-# Fields already rendered explicitly in build_user_prompt below. Any other field present on the
-# JobRequirements instance is treated as an "additional requirement" and surfaced automatically,
-# so new fields added to JobRequirements do not require prompt-building changes here.
+# Fields rendered explicitly in build_user_prompt. Any other JobRequirements
+# field is auto-surfaced as an "additional requirement" — new fields do not
+# require changes here.
 _CORE_FIELDS = {
     "job_role",
     "required_education",
@@ -217,7 +212,6 @@ _CORE_FIELDS = {
 
 
 def _format_value(value: object) -> str:
-    """Render a requirement value for the prompt in a human-readable way."""
     if value is None:
         return "Not specified"
     if isinstance(value, bool):
@@ -233,18 +227,12 @@ def _humanize_field_name(name: str) -> str:
 
 
 def _additional_requirements_block(requirements: JobRequirements) -> str:
-    """Collect any requirement fields beyond the core ones already rendered explicitly.
-
-    This makes the prompt resilient to schema changes: if JobRequirements gains new fields
-    (e.g. location, certifications, language_requirements, notice_period, salary_range,
-    visa_sponsorship), they are picked up automatically instead of being silently dropped.
-    """
     extra_lines: list[str] = []
 
     if dataclasses.is_dataclass(requirements):
         field_names = [f.name for f in dataclasses.fields(requirements)]
     else:
-        field_names = [k for k in vars(requirements).keys()]
+        field_names = list(vars(requirements).keys())
 
     for name in field_names:
         if name in _CORE_FIELDS or name.startswith("_"):
@@ -256,7 +244,6 @@ def _additional_requirements_block(requirements: JobRequirements) -> str:
 
     if not extra_lines:
         return ""
-
     return "\n\nAdditional requirements:\n" + "\n".join(extra_lines)
 
 
@@ -265,20 +252,17 @@ def build_user_prompt(
     requirements: JobRequirements | None = None,
     recruitment_document_text: str | None = None,
 ) -> str:
-    """Wrap the extracted resume text for the user turn of the chat request."""
     if requirements is None:
         requirements = JobRequirements()
 
-    requirements_block = "\n".join(
-        [
-            f"Job role: {requirements.job_role}",
-            f"Required education: {requirements.required_education or 'Not specified'}",
-            f"Minimum experience: {requirements.min_experience if requirements.min_experience is not None else 'Not specified'}",
-            f"Maximum experience: {requirements.max_experience if requirements.max_experience is not None else 'Not specified'}",
-            f"Required skills: {', '.join(requirements.required_skills) if requirements.required_skills else 'Not specified'}",
-            f"Allow overqualified: {str(requirements.allow_overqualified).lower()}",
-        ]
-    )
+    requirements_block = "\n".join([
+        f"Job role: {requirements.job_role}",
+        f"Required education: {requirements.required_education or 'Not specified'}",
+        f"Minimum experience: {requirements.min_experience if requirements.min_experience is not None else 'Not specified'}",
+        f"Maximum experience: {requirements.max_experience if requirements.max_experience is not None else 'Not specified'}",
+        f"Required skills: {', '.join(requirements.required_skills) if requirements.required_skills else 'Not specified'}",
+        f"Allow overqualified: {str(requirements.allow_overqualified).lower()}",
+    ])
 
     requirements_block += _additional_requirements_block(requirements)
 
@@ -286,10 +270,11 @@ def build_user_prompt(
     if recruitment_document_text and recruitment_document_text.strip():
         document_block = f"\n\nRecruitment document text:\n\n{recruitment_document_text.strip()}"
 
-    if not resume_text or not resume_text.strip():
-        resume_block = "[NO RESUME TEXT WAS EXTRACTED — treat as missing per the missing/corrupted resume rule.]"
-    else:
-        resume_block = resume_text
+    resume_block = (
+        resume_text
+        if resume_text and resume_text.strip()
+        else "[NO RESUME TEXT WAS EXTRACTED — treat as missing per the missing/corrupted resume rule.]"
+    )
 
     return (
         "Evaluate this resume for the following recruitment requirements:"
@@ -300,3 +285,37 @@ def build_user_prompt(
     )
 
 
+# ---------------------------------------------------------------------------
+# Job extraction prompt (supersedes job_extraction_prompt.py)
+# ---------------------------------------------------------------------------
+
+EXTRACTION_PROMPT = """You are a recruitment document parser. Given the full text of a company hiring notice,
+identify every distinct vacancy or job opening described in the document.
+
+Only return JSON with the following structure:
+{
+  "jobs": [
+    {
+      "job_title": "string",
+      "job_text": "string",
+      "confidence": 0,
+      "evidence": "string"
+    }
+  ]
+}
+
+Rules:
+- Do not treat department, division, location, company, or employment type as a job title unless the text explicitly describes a distinct role.
+- Do not infer a job solely from skills listings or qualifications.
+- Do not infer a job solely from a department or heading.
+- Do not split one vacancy into multiple jobs because it has multiple sections.
+- Do not merge two clearly distinct vacancies.
+- Preserve the original order of job openings.
+- Use the exact title when it is explicitly stated in the document.
+- If the exact title is not explicitly stated but a strong role is supported by the text, return the closest supported title and explain why.
+- If no distinct job openings can be identified confidently, return {"jobs": []}.
+
+For each job, job_text must contain the full text belonging to that job, including requirements, responsibilities, and any related details.
+
+Return only valid JSON; no markdown or additional fields.
+"""

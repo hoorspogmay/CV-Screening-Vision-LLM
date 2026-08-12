@@ -9,8 +9,7 @@ import pytest
 from app.csv_export import results_to_csv
 from app.groq_provider import GroqProvider
 from app.schemas import Decision, ResumeResult
-from app.token_csv_logger import TokenCSVLogger
-from app.token_logger import GroqProviderAdapter, TokenUsageLogger, safe_record_usage
+from app.token_logger import TokenCSVLogger, GroqProviderAdapter, TokenUsageLogger, safe_record_usage
 
 
 def test_safe_record_usage_writes_csv_and_returns_record(tmp_path: Path) -> None:

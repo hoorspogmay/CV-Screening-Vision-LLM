@@ -1,6 +1,6 @@
 import { useRef } from "react";
 
-export default function RequirementsPanel({ jobSpecFile, setJobSpecFile, status }) {
+export default function RequirementsPanel({ jobSpecFile, setJobSpecFile, status, deducedJobs }) {
   const inputRef = useRef(null);
   const isBusy = status === "uploading" || status === "processing";
 
@@ -29,6 +29,19 @@ export default function RequirementsPanel({ jobSpecFile, setJobSpecFile, status 
           </div>
           {jobSpecFile ? <p className="dropzone__subtitle">Selected: {jobSpecFile.name}</p> : <p className="dropzone__subtitle">No job specification selected yet.</p>}
         </div>
+        {deducedJobs?.length > 0 && (
+          <div className="requirements-panel__deduced-jobs">
+            <h4>Deduced job openings</h4>
+            <ul>
+              {deducedJobs.map((job, index) => (
+                <li key={`${job.title}-${index}`}>
+                  <strong>{job.title || job.requirements?.job_role || "General Role"}</strong>
+                  {job.requirements?.required_skills?.length ? ` — ${job.requirements.required_skills.join(", ")}` : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </section>
   );

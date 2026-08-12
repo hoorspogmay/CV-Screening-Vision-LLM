@@ -108,7 +108,7 @@ async def start_screening(
     # Fire the batch off in the background; the client tracks progress over WebSocket.
     asyncio.create_task(run_screening_job(job, saved_paths))
 
-    return StartScreeningResponse(job_id=job.job_id, total_files=job.total)
+    return StartScreeningResponse(job_id=job.job_id, total_files=job.total, job_profiles=job_profiles)
 
 
 @router.websocket("/ws/{job_id}")

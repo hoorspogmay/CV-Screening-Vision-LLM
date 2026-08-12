@@ -10,6 +10,7 @@ the whole batch.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import shutil
@@ -162,17 +163,19 @@ def _expand_routing_terms(text: str) -> set[str]:
     terms = set(normalized.split())
     expanded = set(terms)
     synonym_groups = {
-        "engineer": {"engineer", "engineering", "developer", "software", "programmer", "swe", "backend", "frontend", "fullstack", "full-stack", "devops"},
+        "engineer": {"engineer", "engineering", "developer", "software", "programmer", "swe", "fullstack", "full-stack", "devops"},
+        "backend": {"backend", "server", "api", "database", "postgres", "postgresql", "mysql", "sql", "docker", "kubernetes", "terraform"},
+        "frontend": {"frontend", "ui", "ux", "javascript", "js", "typescript", "ts", "react", "vue", "angular", "web"},
         "analyst": {"analyst", "analytics", "analysis", "reporting", "dashboard", "bi", "insights", "metrics"},
         "manager": {"manager", "lead", "leadership", "coordinator", "director", "product", "owner"},
-        "designer": {"designer", "ui", "ux", "visual", "experience", "interaction"},
+        "designer": {"designer", "visual", "experience", "interaction"},
         "data": {"data", "database", "warehouse", "etl", "science", "analytics", "sql", "postgres", "postgresql", "mysql", "db"},
         "sales": {"sales", "business", "account", "client", "revenue", "growth", "commercial"},
         "support": {"support", "service", "helpdesk", "customer", "operations"},
         "education": {"bsc", "bs", "ba", "bachelor", "bachelors", "bachelor's", "master", "masters", "msc", "ms", "phd", "doctorate", "graduate", "undergraduate"},
         "cloud": {"cloud", "aws", "azure", "gcp", "docker", "kubernetes", "terraform", "devops"},
         "ai": {"ai", "ml", "machine", "learning", "deep", "llm", "nlp", "vision"},
-        "web": {"web", "javascript", "js", "typescript", "ts", "react", "node", "vue", "angular", "frontend", "backend"},
+        "web": {"web", "javascript", "js", "typescript", "ts", "react", "node", "vue", "angular"},
         "mobile": {"mobile", "android", "ios", "swift", "kotlin"},
         "security": {"security", "cyber", "infosec", "soc", "pentest", "iam"},
         "healthcare": {"nurse", "nursing", "rn", "bsn", "lpn", "patient", "patient-care", "clinical", "icu", "acls", "bls", "hospital", "clinic", "vital", "patientcare"},
@@ -184,6 +187,17 @@ def _expand_routing_terms(text: str) -> set[str]:
     return expanded
 
 
+ROUTE_ABSOLUTE_MIN = 0.12
+ROUTE_RELATIVE_THRESHOLD = 0.5
+
+
+def _jaccard_overlap(a: set[str], b: set[str]) -> float:
+    """Symmetric overlap — not skewed by profile or resume length."""
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
 def _semantic_profile_score(resume_text: str, profile: JobOpeningProfile) -> float:
     profile_text = " ".join(
         part for part in [
@@ -193,75 +207,184 @@ def _semantic_profile_score(resume_text: str, profile: JobOpeningProfile) -> flo
             " ".join(profile.requirements.required_skills),
         ] if part
     )
+
+    # Expand both sides consistently
     resume_terms = _expand_routing_terms(resume_text)
     profile_terms = _expand_routing_terms(profile_text)
-    if not resume_terms or not profile_terms:
-        return 0.0
-
     resume_tokens = set(_normalize_routing_text(resume_text).split())
+    profile_tokens = set(_normalize_routing_text(profile_text).split())
 
-    # Title overlap: capture previous job titles and role labels as the strongest relevance signal.
-    title_tokens = set(_normalize_routing_text(" ".join([profile.title or "", profile.requirements.job_role or ""])) .split())
-    title_overlap = len(resume_tokens & title_tokens)
-    title_score = min(1.0, title_overlap / max(1, len(title_tokens))) if title_tokens else 0.0
+    # Title overlap — use expanded terms on both sides
+    title_tokens = _expand_routing_terms(
+        " ".join([profile.title or "", profile.requirements.job_role or ""])
+    )
+    title_score = _jaccard_overlap(resume_terms, title_tokens)
 
-    # Domain overlap: shared professional vocabulary between resume and job profile.
-    domain_overlap = len(resume_terms & profile_terms) / max(1, len(profile_terms))
+    # Domain overlap — symmetric, not biased by profile length
+    domain_score = _jaccard_overlap(resume_terms, profile_terms)
 
-    # Education relevance: related discipline or degree level matters more than exact wording.
+    # Skill overlap — expanded terms on both sides
+    required_skills = _expand_routing_terms(
+        " ".join(profile.requirements.required_skills)
+    ) if profile.requirements.required_skills else set()
+    skill_score = _jaccard_overlap(resume_tokens, required_skills) if required_skills else 0.0
+
+    # Education — unchanged, it's already a binary signal
     education_tokens = set(_normalize_routing_text(profile.requirements.required_education or "").split())
     related_education_tokens = {
         "medical", "biomedical", "laboratory", "diagnostic", "healthcare", "nursing", "science",
         "business", "administration", "management", "accounting", "finance", "hospitality",
     }
-    education_present = bool(resume_tokens & (education_tokens | related_education_tokens))
-    education_score = 1.0 if education_present and domain_overlap > 0 else 0.0
+    education_score = 1.0 if bool(resume_tokens & (education_tokens | related_education_tokens)) and domain_score > 0 else 0.0
 
-    # Experience/responsibility indicators reflect professional trajectory and true relevance.
+    # Experience indicators — unchanged
     experience_indicators = {
-        "experience", "experienced", "worked", "responsible", "duties", "responsibilities", "years",
-        "managed", "supervised", "coordinated", "led", "operations", "administrative", "customer", "clinical", "laboratory", "diagnostic", "testing", "support",
+        "experience", "experienced", "worked", "responsible", "duties", "responsibilities",
+        "years", "managed", "supervised", "coordinated", "led", "operations",
+        "administrative", "customer", "clinical", "laboratory", "diagnostic",
+        "testing", "support",
     }
-    experience_score = 1.0 if bool(resume_tokens & experience_indicators) and domain_overlap > 0 else 0.0
-
-    # Skill overlap is a contributing signal but not the sole relevance determinant.
-    required_skills = set(_normalize_routing_text(" ".join(profile.requirements.required_skills)).split()) if profile.requirements.required_skills else set()
-    skill_score = len(resume_tokens & required_skills) / max(1, len(required_skills)) if required_skills else 0.0
+    experience_score = 1.0 if bool(resume_tokens & experience_indicators) and domain_score > 0 else 0.0
 
     weighted = (
         0.35 * title_score +
-        0.25 * domain_overlap +
+        0.25 * domain_score +
         0.20 * experience_score +
         0.10 * education_score +
         0.10 * skill_score
     )
 
-    # Prevent single keyword hits from deciding relevance alone.
-    if title_score < 0.1 and domain_overlap < 0.15 and education_score < 0.1 and experience_score < 0.1:
+    # Guard: require at least two signals to fire, not just one
+    signals_firing = sum([
+        title_score >= 0.05,
+        domain_score >= 0.05,
+        skill_score >= 0.05,
+    ])
+    if signals_firing < 2:
         return 0.0
 
     return round(min(1.0, weighted), 3)
 
 
-def _route_resume_to_job_profiles(resume_text: str, profiles: list[JobOpeningProfile]) -> tuple[list[JobOpeningProfile], bool]:
+def _route_resume_to_job_profiles(
+    resume_text: str, profiles: list[JobOpeningProfile]
+) -> tuple[list[JobOpeningProfile], bool]:
     if not profiles:
         return [], False
 
-    scored_profiles = [(profile, _semantic_profile_score(resume_text, profile)) for profile in profiles]
-    scored_profiles.sort(key=lambda item: item[1], reverse=True)
+    scored = sorted(
+        [(p, _semantic_profile_score(resume_text, p)) for p in profiles],
+        key=lambda x: x[1],
+        reverse=True,
+    )
 
-    best_profile, best_score = scored_profiles[0]
-    if best_score < 0.18:
+    best_profile, best_score = scored[0]
+
+    # Hard floor — too little signal to route anywhere
+    if best_score < ROUTE_ABSOLUTE_MIN:
         return [], True
 
-    # Preserve cases where the resume is clearly relevant to a non-nursing profile.
-    if len(scored_profiles) == 1:
-        return [best_profile], False
+    # Only co-route when the second profile is genuinely competitive AND both scores are meaningful
+    if len(scored) > 1:
+        second_profile, second_score = scored[1]
+        if second_score >= ROUTE_RELATIVE_THRESHOLD * best_score and second_score >= 0.20:
+            return [best_profile, second_profile], False
 
-    second_profile, second_score = scored_profiles[1]
-    if second_score >= max(0.3, best_score * 0.6):
-        return [best_profile, second_profile], False
     return [best_profile], False
+
+
+def _extract_json_object(text: str) -> str:
+    payload = text.strip()
+    if payload.startswith("```") and payload.endswith("```"):
+        payload = payload.strip("`").strip()
+    match = re.search(r"\{.*\}", payload, flags=re.DOTALL)
+    return match.group(0) if match else payload
+
+
+async def _route_resume_with_llm(
+    resume_text: str,
+    profiles: list[JobOpeningProfile],
+) -> tuple[list[JobOpeningProfile], bool]:
+    if not profiles:
+        return [], False
+
+    primary_provider = get_ai_provider()
+    system_prompt = (
+        "You are a job routing assistant. Given a resume and a set of job opening profiles, "
+        "select the best matching job titles from the available profiles. "
+        "If no profile is a good match, indicate rejection. Do not invent or modify titles. "
+        "Return ONLY valid JSON with the fields selected_job_titles and reject. "
+        "selected_job_titles should be a list of titles from the provided profiles. "
+        "reject should be true only when no profile is a clear fit."
+    )
+
+    profile_entries = [
+        {
+            "title": profile.title,
+            "job_role": profile.requirements.job_role,
+            "required_education": profile.requirements.required_education,
+            "min_experience": profile.requirements.min_experience,
+            "max_experience": profile.requirements.max_experience,
+            "required_skills": profile.requirements.required_skills,
+            "allow_overqualified": profile.requirements.allow_overqualified,
+            "description": profile.description,
+        }
+        for profile in profiles
+    ]
+
+    user_prompt = (
+        "Job profiles:\n"
+        f"{json.dumps(profile_entries, indent=2, ensure_ascii=False)}\n\n"
+        "Resume text:\n"
+        f"{resume_text.strip() if resume_text else '[NO RESUME TEXT]'}"
+    )
+
+    def _resolve_selection(response_text: str) -> tuple[list[JobOpeningProfile], bool]:
+        parsed = json.loads(_extract_json_object(response_text))
+        selected_job_titles = parsed.get("selected_job_titles")
+        reject_flag = bool(parsed.get("reject", False))
+
+        if selected_job_titles is None:
+            selected_job_titles = parsed.get("selected_jobs")
+
+        if not isinstance(selected_job_titles, list):
+            raise ValueError("selected_job_titles must be a list")
+
+        selected_titles = [str(title).strip() for title in selected_job_titles if str(title).strip()]
+        if reject_flag or not selected_titles:
+            return [], True
+
+        selected_profiles = [profile for profile in profiles if profile.title in selected_titles]
+        if not selected_profiles:
+            raise ValueError("No matching profile titles found in provider response")
+
+        return selected_profiles, False
+
+    try:
+        response_text = await primary_provider.complete(
+            system=system_prompt,
+            user=user_prompt,
+            max_tokens=300,
+            temperature=0.0,
+        )
+        return _resolve_selection(response_text)
+    except Exception as primary_exc:  # noqa: BLE001
+        logger.warning("Primary provider routing failed: %s", primary_exc)
+        fallback_provider = get_fallback_provider(primary_provider)
+        if fallback_provider is not primary_provider:
+            try:
+                response_text = await fallback_provider.complete(
+                    system=system_prompt,
+                    user=user_prompt,
+                    max_tokens=300,
+                    temperature=0.0,
+                )
+                return _resolve_selection(response_text)
+            except Exception as fallback_exc:  # noqa: BLE001
+                logger.warning("Fallback provider routing also failed: %s", fallback_exc)
+
+    logger.warning("LLM routing failed, falling back to semantic routing.")
+    return _route_resume_to_job_profiles(resume_text, profiles)
 
 
 def _routing_reject_result(file_id: str, file_name: str, candidate_name: str = "Unknown") -> ResumeResult:
@@ -347,7 +470,7 @@ async def process_single_resume(job: JobState, file_path: Path, file_name: str) 
         job_profiles = [JobOpeningProfile(title=job.requirements.job_role or "General Professional Role", requirements=job.requirements)]
 
     if job_profiles:
-        selected_profiles, reject = _route_resume_to_job_profiles(text, job_profiles)
+        selected_profiles, reject = await _route_resume_with_llm(text, job_profiles)
         if reject:
             return _routing_reject_result(file_id, file_name)
 

@@ -1,31 +1,159 @@
+"""Token usage logging — CSV writer and structured logger in a single module.
+
+token_csv_logger.py is superseded by this file. Delete it once all imports
+have been updated to point here.
+"""
 from __future__ import annotations
 
+import csv
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional, Protocol
-
-from app.token_csv_logger import TokenCSVLogger
-
+from pathlib import Path
+from typing import Any, Dict, Mapping, Optional, Protocol
 
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# CSV writer (previously token_csv_logger.py)
+# ---------------------------------------------------------------------------
+
+_FIELDNAMES = [
+    "resume_filename",
+    "provider",
+    "model_name",
+    "api_key_identifier",
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "processing_time_seconds",
+    "f1_score",
+]
+
+_DEFAULT_CSV_PATH = Path(__file__).resolve().parent.parent / "token_usage_log.csv"
+
+
+class TokenCSVLogger:
+    """Append-only CSV sink for token usage records."""
+
+    def __init__(self, csv_path: Optional[str | Path] = None) -> None:
+        self.csv_path = Path(csv_path or _DEFAULT_CSV_PATH)
+        self.csv_path.parent.mkdir(parents=True, exist_ok=True)
+        self._ensure_header()
+
+    @staticmethod
+    def fieldnames() -> list[str]:
+        return list(_FIELDNAMES)
+
+    def _ensure_header(self) -> None:
+        if self.csv_path.exists():
+            return
+        with self.csv_path.open("w", newline="", encoding="utf-8") as fh:
+            csv.DictWriter(fh, fieldnames=_FIELDNAMES).writeheader()
+
+    def append(self, record: Mapping[str, Any]) -> None:
+        with self.csv_path.open("a", newline="", encoding="utf-8") as fh:
+            csv.DictWriter(fh, fieldnames=_FIELDNAMES).writerow(self._normalize(record))
+
+    def _normalize(self, record: Mapping[str, Any]) -> Dict[str, Any]:
+        def fmt(v: Any) -> Any:
+            if v is None:
+                return ""
+            if isinstance(v, float):
+                return f"{v:.2f}"
+            return v
+
+        return {
+            "resume_filename": record.get("resume_filename", ""),
+            "provider": record.get("provider", ""),
+            "model_name": record.get("model_name", ""),
+            "api_key_identifier": record.get("api_key_identifier", ""),
+            "prompt_tokens": fmt(record.get("prompt_tokens")),
+            "completion_tokens": fmt(record.get("completion_tokens")),
+            "total_tokens": fmt(record.get("total_tokens")),
+            "processing_time_seconds": fmt(record.get("processing_time_seconds")),
+            "f1_score": fmt(record.get("f1_score")),
+        }
+
+
+# ---------------------------------------------------------------------------
+# Provider adapter protocol + concrete adapters
+# ---------------------------------------------------------------------------
+
 class ProviderAdapter(Protocol):
-    """Minimal protocol for provider-specific token usage extraction."""
+    """Minimal protocol for extracting token usage from a provider response."""
+
+    def get_provider_name(self) -> str: ...
+    def get_model_name(self, response: Mapping[str, Any]) -> str: ...
+    def get_api_key_identifier(self) -> str: ...
+    def get_usage(self, response: Mapping[str, Any]) -> Optional[Mapping[str, Any]]: ...
+
+
+class _BaseAdapter:
+    """Shared implementation for the standard OpenAI-compatible usage shape."""
+
+    def __init__(self, provider_name: str, api_key_identifier: str) -> None:
+        self._provider_name = provider_name
+        self._api_key_identifier = api_key_identifier
 
     def get_provider_name(self) -> str:
-        ...
+        return self._provider_name
 
     def get_model_name(self, response: Mapping[str, Any]) -> str:
-        ...
+        return str(response.get("model") or response.get("model_name") or "unknown")
 
     def get_api_key_identifier(self) -> str:
-        ...
+        return self._api_key_identifier
 
     def get_usage(self, response: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
-        ...
+        usage = (
+            response.get("usage")
+            or response.get("token_usage")
+            or response.get("usage_details")
+        )
+        return usage if isinstance(usage, Mapping) else None
 
+
+class GroqProviderAdapter(_BaseAdapter):
+    def __init__(self, api_key_identifier: str = "Groq") -> None:
+        super().__init__("Groq", api_key_identifier)
+
+
+class OpenRouterProviderAdapter(_BaseAdapter):
+    def __init__(self, api_key_identifier: str = "OpenRouter") -> None:
+        super().__init__("OpenRouter", api_key_identifier)
+
+
+class GoogleProviderAdapter(_BaseAdapter):
+    """Google Gemini responses use different token field names."""
+
+    def __init__(self, api_key_identifier: str = "Google") -> None:
+        super().__init__("Google", api_key_identifier)
+
+    def get_usage(self, response: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
+        # Gemini wraps usage under usageMetadata with camelCase keys.
+        usage = (
+            response.get("usageMetadata")
+            or response.get("usage")
+            or response.get("token_usage")
+            or response.get("usage_details")
+        )
+        return usage if isinstance(usage, Mapping) else None
+
+
+class ClaudeProviderAdapter(_BaseAdapter):
+    def __init__(self, api_key_identifier: str = "Claude") -> None:
+        super().__init__("Claude", api_key_identifier)
+
+    def get_usage(self, response: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
+        usage = response.get("usage")
+        return usage if isinstance(usage, Mapping) else None
+
+
+# ---------------------------------------------------------------------------
+# Usage record
+# ---------------------------------------------------------------------------
 
 @dataclass(slots=True)
 class TokenUsageRecord:
@@ -59,17 +187,11 @@ class TokenUsageRecord:
         }
 
 
+# ---------------------------------------------------------------------------
+# Logger
+# ---------------------------------------------------------------------------
+
 class TokenUsageLogger:
-    """Standalone token usage logger that can be connected to the screening flow.
-
-    Integration hook idea:
-    - Around the provider call for each resume, capture the start time and the
-      provider response.
-    - Call record_usage(...) after the LLM response is received.
-    - This module is intentionally isolated and can be removed later without
-      changing the existing screening workflow.
-    """
-
     def __init__(self, csv_logger: Optional[TokenCSVLogger] = None) -> None:
         self.csv_logger = csv_logger or TokenCSVLogger()
 
@@ -86,15 +208,13 @@ class TokenUsageLogger:
         evaluation_metrics: Optional[Mapping[str, Any]] = None,
     ) -> TokenUsageRecord:
         processing_started_at = processing_started_at or time.time()
-        processing_time_seconds = round(max(time.time() - processing_started_at, 0.0), 2)
+        processing_time = round(max(time.time() - processing_started_at, 0.0), 2)
 
-        usage = None
-        if response is not None:
-            usage = provider_adapter.get_usage(response)
+        usage = provider_adapter.get_usage(response) if response is not None else None
 
-        prompt_tokens = self._extract_prompt_tokens(usage, prompt_text)
-        completion_tokens = self._extract_completion_tokens(usage)
-        total_tokens = self._extract_total_tokens(usage, prompt_tokens, completion_tokens)
+        prompt_tokens = self._prompt_tokens(usage, prompt_text)
+        completion_tokens = self._completion_tokens(usage)
+        total_tokens = self._total_tokens(usage, prompt_tokens, completion_tokens)
 
         record = TokenUsageRecord(
             resume_filename=resume_filename,
@@ -104,73 +224,67 @@ class TokenUsageLogger:
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
-            processing_time_seconds=processing_time_seconds,
-            accuracy_score=self._coerce_metric(evaluation_metrics, "accuracy"),
-            precision_score=self._coerce_metric(evaluation_metrics, "precision"),
-            recall_score=self._coerce_metric(evaluation_metrics, "recall"),
-            f1_score=self._coerce_metric(evaluation_metrics, "f1_score"),
+            processing_time_seconds=processing_time,
+            accuracy_score=self._metric(evaluation_metrics, "accuracy"),
+            precision_score=self._metric(evaluation_metrics, "precision"),
+            recall_score=self._metric(evaluation_metrics, "recall"),
+            f1_score=self._metric(evaluation_metrics, "f1_score"),
         )
 
-        self._write_log(record)
+        self._log(record)
         self.csv_logger.append(record.to_dict())
         return record
 
-    def _extract_prompt_tokens(self, usage: Optional[Mapping[str, Any]], prompt_text: Optional[str]) -> Optional[int]:
+    # ------------------------------------------------------------------
+    # Extraction helpers
+    # ------------------------------------------------------------------
+
+    def _prompt_tokens(
+        self, usage: Optional[Mapping[str, Any]], prompt_text: Optional[str]
+    ) -> Optional[int]:
         if usage is None:
-            return self._estimate_prompt_tokens(prompt_text)
+            return self._estimate(prompt_text)
+        for key in ("prompt_tokens", "promptTokenCount", "input_tokens"):
+            if key in usage:
+                return self._to_int(usage[key])
+        return self._estimate(prompt_text)
 
-        if "prompt_tokens" in usage:
-            return self._to_int(usage.get("prompt_tokens"))
-        if "promptTokenCount" in usage:
-            return self._to_int(usage.get("promptTokenCount"))
-        return self._estimate_prompt_tokens(prompt_text)
-
-    def _extract_completion_tokens(self, usage: Optional[Mapping[str, Any]]) -> Optional[int]:
+    def _completion_tokens(self, usage: Optional[Mapping[str, Any]]) -> Optional[int]:
         if usage is None:
             return None
-        if "completion_tokens" in usage:
-            return self._to_int(usage.get("completion_tokens"))
-        if "completionTokenCount" in usage:
-            return self._to_int(usage.get("completionTokenCount"))
+        for key in ("completion_tokens", "completionTokenCount", "output_tokens"):
+            if key in usage:
+                return self._to_int(usage[key])
         return None
 
-    def _extract_total_tokens(
+    def _total_tokens(
         self,
         usage: Optional[Mapping[str, Any]],
         prompt_tokens: Optional[int],
         completion_tokens: Optional[int],
     ) -> Optional[int]:
-        if usage is None:
-            return (
-                None
-                if prompt_tokens is None and completion_tokens is None
-                else (prompt_tokens or 0) + (completion_tokens or 0)
-            )
-
-        if "total_tokens" in usage:
-            return self._to_int(usage.get("total_tokens"))
-        if "totalTokenCount" in usage:
-            return self._to_int(usage.get("totalTokenCount"))
-        return (
-            None
-            if prompt_tokens is None and completion_tokens is None
-            else (prompt_tokens or 0) + (completion_tokens or 0)
-        )
+        if usage is not None:
+            for key in ("total_tokens", "totalTokenCount"):
+                if key in usage:
+                    return self._to_int(usage[key])
+        if prompt_tokens is None and completion_tokens is None:
+            return None
+        return (prompt_tokens or 0) + (completion_tokens or 0)
 
     @staticmethod
-    def _coerce_metric(evaluation_metrics: Optional[Mapping[str, Any]], key: str) -> Optional[float]:
-        if not evaluation_metrics:
+    def _metric(metrics: Optional[Mapping[str, Any]], key: str) -> Optional[float]:
+        if not metrics:
             return None
-        value = evaluation_metrics.get(key)
-        if value is None:
+        v = metrics.get(key)
+        if v is None:
             return None
         try:
-            return float(value)
+            return float(v)
         except (TypeError, ValueError):
             return None
 
     @staticmethod
-    def _estimate_prompt_tokens(prompt_text: Optional[str]) -> Optional[int]:
+    def _estimate(prompt_text: Optional[str]) -> Optional[int]:
         if not prompt_text:
             return None
         return max(1, len(prompt_text.split()))
@@ -181,26 +295,14 @@ class TokenUsageLogger:
             return None
         if isinstance(value, bool):
             return int(value)
-        if isinstance(value, int):
-            return value
-        if isinstance(value, float):
+        if isinstance(value, (int, float)):
             return int(value)
         try:
             return int(str(value))
         except (TypeError, ValueError):
             return None
 
-    def _write_log(self, record: TokenUsageRecord) -> None:
-        """Emit token usage as structured log lines via the logging framework.
-
-        Previously used print(), which is invisible to uvicorn's log pipeline
-        and any file/aggregator log handlers. Now uses logger.info() so output
-        appears wherever the app's logging is configured to send it.
-        """
-        prompt_tokens = "unavailable" if record.prompt_tokens is None else record.prompt_tokens
-        completion_tokens = "unavailable" if record.completion_tokens is None else record.completion_tokens
-        total_tokens = "unavailable" if record.total_tokens is None else record.total_tokens
-
+    def _log(self, record: TokenUsageRecord) -> None:
         logger.info(
             "Token usage | resume=%s | provider=%s | model=%s | key=%s | "
             "prompt_tokens=%s | completion_tokens=%s | total_tokens=%s | time=%.2fs",
@@ -208,9 +310,9 @@ class TokenUsageLogger:
             record.provider,
             record.model_name,
             record.api_key_identifier,
-            prompt_tokens,
-            completion_tokens,
-            total_tokens,
+            "unavailable" if record.prompt_tokens is None else record.prompt_tokens,
+            "unavailable" if record.completion_tokens is None else record.completion_tokens,
+            "unavailable" if record.total_tokens is None else record.total_tokens,
             record.processing_time_seconds,
         )
 
@@ -227,11 +329,7 @@ def safe_record_usage(
     model_name: Optional[str] = None,
     evaluation_metrics: Optional[Mapping[str, Any]] = None,
 ) -> Optional[TokenUsageRecord]:
-    """Record token usage without interrupting the main screening flow.
-
-    Failures are logged at ERROR level (previously WARNING) so they are
-    visible in production log streams and not silently discarded.
-    """
+    """Record token usage without interrupting the main screening flow."""
     try:
         return token_logger.record_usage(
             resume_filename=resume_filename,
@@ -243,111 +341,10 @@ def safe_record_usage(
             model_name=model_name,
             evaluation_metrics=evaluation_metrics,
         )
-    except Exception as exc:  # pragma: no cover - defensive logging path
+    except Exception as exc:
         logger.error(
             "Token usage logging FAILED for %s: %s",
-            resume_filename,
-            exc,
+            resume_filename, exc,
             exc_info=True,
         )
         return None
-
-
-class GroqProviderAdapter:
-    """Adapter for Groq-style responses."""
-
-    def __init__(self, api_key_identifier: str = "Groq") -> None:
-        self._api_key_identifier = api_key_identifier
-
-    def get_provider_name(self) -> str:
-        return "Groq"
-
-    def get_model_name(self, response: Mapping[str, Any]) -> str:
-        model_name = response.get("model") or response.get("model_name") or ""
-        return str(model_name or "unknown")
-
-    def get_api_key_identifier(self) -> str:
-        return self._api_key_identifier
-
-    def get_usage(self, response: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
-        usage = response.get("usage") or response.get("token_usage") or response.get("usage_details")
-        if isinstance(usage, Mapping):
-            return usage
-        return None
-
-
-class OpenRouterProviderAdapter:
-    """Adapter for OpenRouter-style responses."""
-
-    def __init__(self, api_key_identifier: str = "OpenRouter") -> None:
-        self._api_key_identifier = api_key_identifier
-
-    def get_provider_name(self) -> str:
-        return "OpenRouter"
-
-    def get_model_name(self, response: Mapping[str, Any]) -> str:
-        model_name = response.get("model") or response.get("model_name") or ""
-        return str(model_name or "unknown")
-
-    def get_api_key_identifier(self) -> str:
-        return self._api_key_identifier
-
-    def get_usage(self, response: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
-        usage = response.get("usage") or response.get("token_usage") or response.get("usage_details")
-        if isinstance(usage, Mapping):
-            return usage
-        return None
-
-
-class GoogleProviderAdapter:
-    """Adapter for Google-style responses."""
-
-    def __init__(self, api_key_identifier: str = "Google") -> None:
-        self._api_key_identifier = api_key_identifier
-
-    def get_provider_name(self) -> str:
-        return "Google"
-
-    def get_model_name(self, response: Mapping[str, Any]) -> str:
-        model_name = response.get("model") or response.get("model_name") or ""
-        return str(model_name or "unknown")
-
-    def get_api_key_identifier(self) -> str:
-        return self._api_key_identifier
-
-    def get_usage(self, response: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
-        usage = response.get("usage") or response.get("token_usage") or response.get("usage_details")
-        if isinstance(usage, Mapping):
-            return usage
-        return None
-
-
-class ProviderAdapterRegistry:
-    """Simple registry for provider adapters."""
-
-    def __init__(self) -> None:
-        self._adapters: dict[str, type[ProviderAdapter]] = {}
-
-    def register(self, provider_name: str, adapter_cls: type[ProviderAdapter]) -> None:
-        self._adapters[provider_name.lower()] = adapter_cls
-
-    def create(self, provider_name: str, **kwargs: Any) -> ProviderAdapter:
-        adapter_cls = self._adapters.get(provider_name.lower())
-        if adapter_cls is None:
-            raise KeyError(f"Unsupported provider: {provider_name}")
-        return adapter_cls(**kwargs)
-
-
-# Optional integration example:
-# from app.token_logger import TokenUsageLogger, GroqProviderAdapter
-#
-# logger = TokenUsageLogger()
-# start_time = time.time()
-# response = ...  # existing provider call
-# logger.record_usage(
-#     resume_filename=resume_file_name,
-#     provider_adapter=GroqProviderAdapter(api_key_identifier="Groq"),
-#     response=response,
-#     prompt_text=prompt_text,
-#     processing_started_at=start_time,
-# )

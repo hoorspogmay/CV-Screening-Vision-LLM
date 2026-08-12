@@ -9,7 +9,7 @@ from app.job_extraction_types import JobExtraction
 
 logger = logging.getLogger(__name__)
 
-EXPLICIT_JOB_HEADING_PATTERNS = [
+_EXPLICIT_JOB_HEADING_PATTERNS = [
     r"\bposition\b",
     r"\bvacancy\b",
     r"\bjob\s+title\b",
@@ -19,21 +19,23 @@ EXPLICIT_JOB_HEADING_PATTERNS = [
 
 
 def _has_explicit_job_heading(text: str) -> bool:
-    lowered = text.lower()
-    return any(re.search(pattern, lowered, flags=re.IGNORECASE) for pattern in EXPLICIT_JOB_HEADING_PATTERNS)
+    return any(
+        re.search(p, text, flags=re.IGNORECASE)
+        for p in _EXPLICIT_JOB_HEADING_PATTERNS
+    )
 
 
 def _validate_extracted_jobs(jobs: list[JobExtraction], document_text: str) -> list[JobExtraction]:
     if jobs is None:
         raise ValueError("Job extraction response was empty.")
-
     if not isinstance(jobs, list):
         raise ValueError("Job extraction response must be a list of jobs.")
-
     if not jobs and _has_explicit_job_heading(document_text):
-        raise ValueError("Document contains explicit job headings but the extraction returned no jobs.")
+        raise ValueError(
+            "Document contains explicit job headings but the extraction returned no jobs."
+        )
 
-    titles = []
+    titles: list[str] = []
     for job in jobs:
         if not job.job_title.strip():
             raise ValueError("Job extraction returned a job with an empty title.")
@@ -48,17 +50,26 @@ def _validate_extracted_jobs(jobs: list[JobExtraction], document_text: str) -> l
 
 
 async def extract_jobs_from_recruitment_document(document_text: str) -> list[JobExtraction]:
-    provider = get_ai_provider()
-    if not hasattr(provider, "extract_jobs"):
-        raise RuntimeError("Selected AI provider does not support job extraction.")
+    """Extract job openings from the given recruitment document text.
 
-    jobs = await provider.extract_jobs(document_text)
+    Raises RuntimeError if the active provider does not support extraction.
+    """
+    provider = get_ai_provider()
+
+    try:
+        jobs = await provider.extract_jobs(document_text)
+    except NotImplementedError:
+        raise RuntimeError(
+            f"The active AI provider ({type(provider).__name__}) does not support "
+            "job extraction. Override extract_jobs() in that provider class."
+        )
+
     jobs = _validate_extracted_jobs(jobs, document_text)
 
     logger.info(
-        "Validated job extraction | jobs=%d | titles=%s | lengths=%s",
+        "Validated job extraction | jobs=%d | titles=%s | word_counts=%s",
         len(jobs),
-        [job.job_title for job in jobs],
-        [len(job.job_text.split()) for job in jobs],
+        [j.job_title for j in jobs],
+        [len(j.job_text.split()) for j in jobs],
     )
     return jobs

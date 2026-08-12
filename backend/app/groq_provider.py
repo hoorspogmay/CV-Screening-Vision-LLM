@@ -13,17 +13,11 @@ import time
 import httpx
 
 from app.config import get_settings
-from app.job_extraction_prompt import EXTRACTION_PROMPT
+from app.prompts import EXTRACTION_PROMPT, SYSTEM_PROMPT, build_user_prompt
 from app.job_extraction_types import JobExtraction, parse_job_extraction_response
 from app.schemas import Decision, ResumeResult
 from app.job_requirements import JobRequirements
-from app.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.providers_base import AIProvider
-from app.decision_utils import (
-    classify_by_match_score,
-    infer_experience_years,
-    parse_optional_int,
-)
 from app.token_logger import GroqProviderAdapter, TokenUsageLogger, safe_record_usage
 
 logger = logging.getLogger(__name__)
@@ -106,7 +100,10 @@ class GroqProvider(AIProvider):
                         api_key_identifier="Groq",
                         model_name=self._model,
                     )
-                    return self._parse_response(content, file_name, file_id, resume_text, requirements)
+                    result = self.parse_resume_json(content, file_name, file_id, requirements)
+                    if result.candidate_name == "Unknown":
+                        result = result.model_copy(update={"candidate_name": self._infer_candidate_name(resume_text)})
+                    return result
                 except (httpx.HTTPError, KeyError, json.JSONDecodeError) as exc:
                     last_error = exc
                     logger.warning(
@@ -132,6 +129,49 @@ class GroqProvider(AIProvider):
         )
         raise RuntimeError(f"Groq evaluation failed after {self._max_retries} attempts: {last_error}")
 
+    async def complete(
+        self,
+        system: str,
+        user: str,
+        max_tokens: int = 200,
+        temperature: float = 0.0,
+    ) -> str:
+        prompt_text = f"{system}\n\n{user}"
+        payload = {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+
+        last_error: Exception | None = None
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            for attempt in range(1, self._max_retries + 1):
+                try:
+                    response = await client.post(self._url, headers=headers, json=payload)
+                    response.raise_for_status()
+                    body = response.json()
+                    return body["choices"][0]["message"]["content"]
+                except (httpx.HTTPError, KeyError, json.JSONDecodeError) as exc:
+                    last_error = exc
+                    logger.warning(
+                        "Groq completion failed (attempt %d/%d): %s",
+                        attempt,
+                        self._max_retries,
+                        exc,
+                    )
+                    if attempt < self._max_retries:
+                        await asyncio.sleep(self._backoff * attempt)
+
+        raise RuntimeError(f"Groq completion failed after {self._max_retries} attempts: {last_error}")
+
     @staticmethod
     def _parse_response(
         content: str,
@@ -140,49 +180,7 @@ class GroqProvider(AIProvider):
         resume_text: str,
         requirements: JobRequirements | None = None,
     ) -> ResumeResult:
-        cleaned = content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        data = json.loads(cleaned)
-
-        candidate_name = str(data.get("candidate_name") or "").strip()
-        if not candidate_name or candidate_name.lower() in {"unknown", "n/a", "null"}:
-            candidate_name = GroqProvider._infer_candidate_name(resume_text)
-
-        try:
-            match_score = float(data.get("match_score", 0))
-        except (TypeError, ValueError):
-            match_score = 0.0
-
-        decision_value = str(data.get("decision") or "").strip().upper()
-        if decision_value not in {Decision.ACCEPT.value, Decision.REJECT.value, Decision.DOUBTFUL.value}:
-            summary = str(data.get("summary") or "")
-            decision_value = classify_by_match_score(
-                match_score,
-                Decision.REJECT,
-                requirements,
-                reasoning=summary,
-            ).value
-
-        experience_years = parse_optional_int(data.get("experience_years"))
-        summary_text = str(data.get("experience_summary") or data.get("experience") or data.get("summary") or data.get("reason") or "")
-        inferred_years = infer_experience_years(summary_text)
-        if experience_years is None:
-            experience_years = inferred_years
-        elif experience_years == 0 and inferred_years is not None:
-            text_lower = summary_text.lower()
-            if "no relevant experience" not in text_lower and "no experience" not in text_lower:
-                experience_years = inferred_years
-
-        return ResumeResult(
-            file_id=file_id,
-            file_name=file_name,
-            candidate_name=candidate_name or "Unknown",
-            decision=Decision(decision_value),
-            summary=data.get("summary", ""),
-            match_score=match_score,
-            education_level=str(data.get("education_level") or "None").strip(),
-            experience_years=experience_years,
-            skills_match=bool(data.get("skills_match", True)),
-        )
+        return GroqProvider.parse_resume_json(content, file_name, file_id, requirements)
 
     async def extract_jobs(self, document_text: str) -> list[JobExtraction]:
         prompt_text = f"{EXTRACTION_PROMPT}\n\nDocument text:\n{document_text}"

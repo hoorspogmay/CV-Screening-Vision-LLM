@@ -15,6 +15,7 @@ function isAllowedFile(file) {
 export function useScreeningJob(pushToast) {
   const [status, setStatus] = useState("idle"); // idle | uploading | processing | completed
   const [jobId, setJobId] = useState(null);
+  const [deducedJobs, setDeducedJobs] = useState([]);
   const [progress, setProgress] = useState({ total: 0, processed: 0, accepted: 0, doubtful: 0, rejected: 0, failed: 0 });
   const [results, setResults] = useState([]);
   const socketRef = useRef(null);
@@ -23,6 +24,7 @@ export function useScreeningJob(pushToast) {
     socketRef.current?.close();
     setStatus("idle");
     setJobId(null);
+    setDeducedJobs([]);
     setProgress({ total: 0, processed: 0, accepted: 0, doubtful: 0, rejected: 0, failed: 0 });
     setResults([]);
   }, []);
@@ -49,8 +51,9 @@ export function useScreeningJob(pushToast) {
       setProgress({ total: files.length, processed: 0, accepted: 0, doubtful: 0, rejected: 0, failed: 0 });
 
       try {
-        const { job_id, total_files } = await startScreening(files, jobSpecFile);
+        const { job_id, total_files, job_profiles } = await startScreening(files, jobSpecFile);
         setJobId(job_id);
+        setDeducedJobs(job_profiles || []);
         setProgress((prev) => ({ ...prev, total: total_files }));
         setStatus("processing");
 
@@ -94,5 +97,5 @@ export function useScreeningJob(pushToast) {
     [pushToast]
   );
 
-  return { status, jobId, progress, results, beginScreening, reset };
+  return { status, jobId, deducedJobs, progress, results, beginScreening, reset };
 }

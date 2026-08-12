@@ -31,7 +31,6 @@ def classify_by_match_score(
 
     if score >= accept_threshold:
         return Decision.ACCEPT
-    # Allow an override for minor single-skill gaps when the reasoning is strongly positive.
     if _should_accept_for_minor_skill_gap(reasoning_text):
         return Decision.ACCEPT
     if score >= doubtful_threshold:
@@ -45,46 +44,24 @@ def _should_accept_for_minor_skill_gap(reasoning: str) -> bool:
         return False
 
     minor_gap_patterns = [
-        "minor gap",
-        "minor missing",
-        "small gap",
-        "slight gap",
-        "one skill",
-        "single skill",
-        "one missing",
-        "single missing",
+        "minor gap", "minor missing", "small gap", "slight gap",
+        "one skill", "single skill", "one missing", "single missing",
     ]
     positive_markers = [
-        "strong fit",
-        "good fit",
-        "well matched",
-        "well qualified",
-        "overall strong",
-        "overall good",
-        "meets the role requirements",
-        "meets the requirements",
-        "should be accepted",
-        "broadly satisfies",
-        "clearly qualified",
-        "suitable",
+        "strong fit", "good fit", "well matched", "well qualified",
+        "overall strong", "overall good", "meets the role requirements",
+        "meets the requirements", "should be accepted", "broadly satisfies",
+        "clearly qualified", "suitable",
     ]
     negative_markers = [
-        "does not meet",
-        "doesn't meet",
-        "not suitable",
-        "not qualified",
-        "poor fit",
-        "weak fit",
-        "lacks",
-        "missing experience",
-        "missing skills",
-        "no relevant experience",
-        "no relevant skills",
+        "does not meet", "doesn't meet", "not suitable", "not qualified",
+        "poor fit", "weak fit", "lacks", "missing experience",
+        "missing skills", "no relevant experience", "no relevant skills",
     ]
 
-    has_minor_gap = any(pattern in text for pattern in minor_gap_patterns)
-    has_positive_fit = any(marker in text for marker in positive_markers)
-    has_strong_negative = any(marker in text for marker in negative_markers)
+    has_minor_gap = any(p in text for p in minor_gap_patterns)
+    has_positive_fit = any(m in text for m in positive_markers)
+    has_strong_negative = any(m in text for m in negative_markers)
 
     return has_minor_gap and has_positive_fit and not has_strong_negative
 
@@ -97,7 +74,7 @@ def score_from_reasoning(reasoning: str) -> float:
     positive_markers = [
         "strong fit", "good fit", "well matched", "meets", "matches", "suitable", "qualified",
         "relevant experience", "relevant skills", "strongly aligns", "good alignment", "clear fit",
-        "meets the role requirements", "solid background", "appropriate experience"
+        "meets the role requirements", "solid background", "appropriate experience",
     ]
     negative_markers = [
         "weak fit", "poor fit", "does not meet", "doesn't meet", "not suitable", "not qualified",
@@ -106,8 +83,8 @@ def score_from_reasoning(reasoning: str) -> float:
         "fails mandatory", "fails the role", "does not satisfy", "not mentioned",
     ]
 
-    positive_hits = sum(1 for marker in positive_markers if marker in text)
-    negative_hits = sum(1 for marker in negative_markers if marker in text)
+    positive_hits = sum(1 for m in positive_markers if m in text)
+    negative_hits = sum(1 for m in negative_markers if m in text)
 
     if positive_hits and negative_hits:
         return 50.0 + (positive_hits - negative_hits) * 5.0
@@ -115,24 +92,24 @@ def score_from_reasoning(reasoning: str) -> float:
         return min(90.0, 70.0 + positive_hits * 5.0)
     if negative_hits:
         return max(10.0, 40.0 - negative_hits * 6.0)
-
     return 50.0
 
 
 def parse_optional_float(value: object) -> float | None:
+    """Parse a value to float, returning None on failure."""
     if value is None:
         return None
     if isinstance(value, str):
         value = value.strip()
         if not value:
             return None
-        try:
-            return float(value)
-        except ValueError:
-            match = re.search(r"([0-9]+(?:\.[0-9]+)?)", value)
-            if match:
+        match = re.search(r"([0-9]+(?:\.[0-9]+)?)", value)
+        if match:
+            try:
                 return float(match.group(1))
-            return None
+            except ValueError:
+                return None
+        return None
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -140,6 +117,7 @@ def parse_optional_float(value: object) -> float | None:
 
 
 def parse_optional_int(value: object) -> int | None:
+    """Parse a value to int, returning None on failure."""
     if value is None:
         return None
     if isinstance(value, str):
@@ -153,32 +131,6 @@ def parse_optional_int(value: object) -> int | None:
             except ValueError:
                 return None
         return None
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return None
-
-
-def parse_optional_float(value: object) -> float | None:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        value = value.strip()
-        if not value:
-            return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def parse_optional_int(value: object) -> int | None:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        value = value.strip()
-        if not value:
-            return None
     try:
         return int(float(value))
     except (TypeError, ValueError):
@@ -202,15 +154,11 @@ def infer_experience_years(text: str | None) -> int | None:
         for match in re.finditer(pattern, summary):
             if match.lastindex is None:
                 continue
-            if match.lastindex == 1:
-                values.append(int(match.group(1)))
-            elif match.lastindex >= 2:
-                values.append(int(match.group(1)))
+            values.append(int(match.group(1)))
 
-    values = [value for value in values if value >= 0]
+    values = [v for v in values if v >= 0]
     if not values:
         return None
-
     return min(values)
 
 
@@ -233,32 +181,20 @@ def reconcile_extracted_fields(
     skills_match: bool | None,
     education_level: str | None,
 ) -> tuple[int | None, bool | None, str | None]:
-    """Normalize provider-extracted fields so they don't contradict the natural-language summary.
-
-    Rules (minimal, evidence-based):
-    - If `experience_years` is 0 but the summary contains explicit year spans or numbers, use inferred years.
-    - If `experience_years` is 0 and the summary does not state "no experience", prefer `None` (unknown) rather than 0.
-    - If `skills_match` is False but the summary contains positive skill indicators and no strong negatives, set to True.
-    - If `education_level` is empty/unknown but a degree term appears in the summary, set the detected degree.
-    """
+    """Normalize provider-extracted fields so they don't contradict the summary."""
     s = (summary or "").strip()
     s_lower = s.lower()
 
     # Experience reconciliation
     if experience_years == 0:
         if "no relevant experience" in s_lower or "no experience" in s_lower or "without experience" in s_lower:
-            # explicit zero — keep 0
-            pass
+            pass  # explicit zero — keep 0
         else:
             inferred = infer_experience_years(s)
-            if inferred is not None:
-                experience_years = inferred
-            else:
-                experience_years = None
+            experience_years = inferred if inferred is not None else None
 
     # Skills reconciliation
     if skills_match is False:
-        # Reuse markers from score_from_reasoning heuristics
         positive_markers = [
             "strong fit", "good fit", "well matched", "meets", "matches", "suitable", "qualified",
             "relevant experience", "relevant skills", "strongly aligns", "good alignment", "clear fit",
